@@ -1,0 +1,51 @@
+# ============================================================
+# Keep the repo small — never commit raw video / frame data.
+# Only code + trained model artifacts (small .joblib files) go in.
+# ============================================================
+
+# Raw dataset (if you ever keep a local copy inside the project folder)
+*.avi
+*.mp4
+le2i_dataset/
+dataset/
+
+# FA-1 pipeline outputs — thousands of PNGs, easily hundreds of MB.
+# Screenshots you actually want in the storyboard should be copied
+# OUT of fa1_outputs/screenshots/ into your Figma/Canva board by hand,
+# not committed here.
+fa1_outputs/raw_frames/
+fa1_outputs/processed/
+fa1_outputs/balanced/
+fa1_outputs/split/
+
+# Keep the CSV manifests and screenshots (small, useful for the README)
+# by NOT ignoring these two:
+!fa1_outputs/train_manifest.csv
+!fa1_outputs/test_manifest.csv
+!fa1_outputs/screenshots/
+
+# FA-2 outputs — KEEP the models/ folder (small .joblib files, needed
+# for the deployed app to load) but ignore anything bulky if you ever
+# dump extra intermediate data here.
+fa2_outputs/tmp/
+
+# YOLO auto-downloads this on first run — no need to version it
+yolo11n-pose.pt
+*.pt
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Temp files app.py writes for uploaded videos
+_tmp_*
