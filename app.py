@@ -171,9 +171,9 @@ with tab_predict:
 
             col1, col2 = st.columns(2)
             with col1:
-                st.image(pil_img, caption="Uploaded image", use_container_width=True)
+                st.image(pil_img, caption="Uploaded image", width='stretch')
             with col2:
-                st.image(annotated, caption="Pose detection output", use_container_width=True)
+                st.image(annotated, caption="Pose detection output", width='stretch')
 
             if label is None:
                 st.warning("No confident person detection in this image — try a clearer frame.")
@@ -193,7 +193,7 @@ with tab_predict:
                         sorted(prob_breakdown.items(), key=lambda x: -x[1]),
                         columns=["class", "probability"],
                     )
-                    st.dataframe(breakdown_df, use_container_width=True)
+                    st.dataframe(breakdown_df, width='stretch')
                     st.caption(
                         "If 'fall' and the correct class are close together here, "
                         "it's a genuinely hard/borderline example — worth adding more "
@@ -248,7 +248,7 @@ with tab_predict:
                         preview_slot.image(
                             annotated,
                             caption=f"Frame {frame_idx} ({frame_idx / fps:.1f}s) — {label} ({confidence:.0%})",
-                            use_container_width=True,
+                            width='stretch',
                         )
                         # Only count as a fall if confidence clears the gate,
                         # AND merge it into the previous event if it's within
@@ -307,11 +307,11 @@ with tab_metrics:
     loss_path = screenshots_dir / "mlp_loss_curve.png"
 
     if cm_path.exists():
-        col1.image(str(cm_path), caption="Confusion Matrix (test set)", use_container_width=True)
+        col1.image(str(cm_path), caption="Confusion Matrix (test set)", width='stretch')
     if cmp_path.exists():
-        col2.image(str(cmp_path), caption="Random Forest vs MLP", use_container_width=True)
+        col2.image(str(cmp_path), caption="Random Forest vs MLP", width='stretch')
     if loss_path.exists():
-        st.image(str(loss_path), caption="MLP Training Loss Curve", use_container_width=True)
+        st.image(str(loss_path), caption="MLP Training Loss Curve", width='stretch')
 
     pred_dir = screenshots_dir / "predictions"
     if pred_dir.exists():
@@ -319,7 +319,7 @@ with tab_metrics:
         pred_files = sorted(pred_dir.glob("*.png"))[:8]
         cols = st.columns(4)
         for i, p in enumerate(pred_files):
-            cols[i % 4].image(str(p), use_container_width=True)
+            cols[i % 4].image(str(p), width='stretch')
 
     if not info_path.exists():
         st.info("Run `python train_classifier.py` to generate evaluation charts.")
