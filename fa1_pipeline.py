@@ -50,7 +50,15 @@ OUTPUT_ROOT = Path("./fa1_outputs")
 
 IMG_SIZE = 224
 CONF_THRESHOLD = 0.5          # raised from 0.25 -> kills low-confidence "ghost" detections
-FRAMES_PER_VIDEO = 10         # half biased into the annotated fall window, half spread across the video
+FRAMES_PER_VIDEO = 18         # bumped up from 10 so the fall arc isn't cut short
+FALL_RUNWAY_FRAMES = 40       # ~1.3-1.6s at typical Le2i frame rates — extra frames
+                               # sampled BEFORE fall_start and AFTER fall_end so the
+                               # walk/stand-up-to-it lead-in and the post-fall lying
+                               # phase both actually get captured, not just the
+                               # narrow annotated segment itself. This only widens
+                               # what gets SAMPLED — it does NOT widen what gets
+                               # LABELED "fall" (that's still FALL_BUFFER_FRAMES,
+                               # defined further down, kept intentionally tighter).
 RANDOM_SEED = 42
 
 ENVIRONMENTS = [
@@ -245,28 +253,35 @@ def sample_frame_indices(total_frames, n):
 
 
 def sample_frame_indices_for_video(total_frames, fall_start, fall_end, n=FRAMES_PER_VIDEO):
-    """Half the samples are deliberately drawn from INSIDE the annotated
-    fall window (if one exists) so the brief 1-1.5s fall event doesn't get
-    statistically skipped by even spacing across a 3.5-12s video. The other
-    half are spread across the whole video for non-fall class diversity."""
+    """Most samples are deliberately drawn from a WIDENED region around the
+    annotated fall window — fall_start/end extended by FALL_RUNWAY_FRAMES on
+    each side — so the full arc (walking/standing lead-in -> impact ->
+    post-fall lying) gets captured, not just the narrow annotated segment.
+    The remaining samples are spread across the whole video for other-class
+    diversity. This widened region only affects SAMPLING, not LABELING —
+    frames outside the (tighter) FALL_BUFFER_FRAMES window still get
+    classified normally by classify_non_fall_posture()."""
     if fall_start is None:
         return sample_frame_indices(total_frames, n)
 
     fall_start = max(0, min(fall_start, total_frames - 1))
     fall_end = max(fall_start, min(fall_end, total_frames - 1))
 
-    n_fall = max(2, n // 2)
-    n_other = n - n_fall
+    region_start = max(0, fall_start - FALL_RUNWAY_FRAMES)
+    region_end = min(total_frames - 1, fall_end + FALL_RUNWAY_FRAMES)
 
-    fall_span = fall_end - fall_start
-    if fall_span <= 0:
-        fall_frames = [fall_start]
+    n_region = max(6, int(n * 0.65))
+    n_other = max(0, n - n_region)
+
+    region_span = region_end - region_start
+    if region_span <= 0:
+        region_frames = [region_start]
     else:
-        step = fall_span / max(1, n_fall - 1)
-        fall_frames = sorted(set(int(fall_start + i * step) for i in range(n_fall)))
+        step = region_span / max(1, n_region - 1)
+        region_frames = sorted(set(int(region_start + i * step) for i in range(n_region)))
 
     other_frames = sample_frame_indices(total_frames, n_other)
-    return sorted(set(fall_frames) | set(other_frames))
+    return sorted(set(region_frames) | set(other_frames))
 
 
 def extract_and_label(model, pairs, frames_per_video=FRAMES_PER_VIDEO):
