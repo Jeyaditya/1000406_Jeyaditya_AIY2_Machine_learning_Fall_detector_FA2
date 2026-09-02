@@ -1,35 +1,14 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
+
 torch
 torchvision
-
 ultralytics==8.3.203
 opencv-python-headless
 numpy
 pandas
-
-# IMPORTANT: pin these to EXACTLY what you trained with locally, or you'll
-# hit the "InconsistentVersionWarning" -> segfault-on-unpickle problem.
-# Run locally: pip freeze | grep -i -E "scikit-learn|numpy|joblib"
-# then replace the two lines below with e.g.:
-#   scikit-learn==1.8.0
-#   joblib==1.4.2
 scikit-learn
 joblib
-
 matplotlib
 pillow
 streamlit
 psutil
-
---extra-index-url https://download.pytorch.org/whl/cpu
-torch
-torchvision
-
-ultralytics==8.3.203
-opencv-python-headless
-numpy
-pandas
-scikit-learn
-matplotlib
-pillow
-streamlit
