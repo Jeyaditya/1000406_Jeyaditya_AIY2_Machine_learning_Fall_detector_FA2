@@ -1,17 +1,25 @@
-# ============================================================
-# SafeFall AI - requirements.txt for GitHub repo / Streamlit Cloud
-# ============================================================
-# This is DIFFERENT from your local requirements.txt:
-#   - opencv-python-headless (not opencv-python) — Streamlit Cloud's
-#     containers have no display server, plain opencv-python throws
-#     "ImportError: libGL.so.1" on that platform.
-#   - torch is pulled from the CPU wheel index — Streamlit Cloud has
-#     no GPU, and pulling a CUDA build would just waste build minutes
-#     and fail or bloat the slug for nothing.
-#
-# pip supports --extra-index-url as a line inside requirements.txt,
-# and Streamlit Cloud runs `pip install -r requirements.txt` directly,
-# so this file works as-is for both local dev and deployment.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+
+ultralytics==8.3.203
+opencv-python-headless
+numpy
+pandas
+
+# IMPORTANT: pin these to EXACTLY what you trained with locally, or you'll
+# hit the "InconsistentVersionWarning" -> segfault-on-unpickle problem.
+# Run locally: pip freeze | grep -i -E "scikit-learn|numpy|joblib"
+# then replace the two lines below with e.g.:
+#   scikit-learn==1.8.0
+#   joblib==1.4.2
+scikit-learn
+joblib
+
+matplotlib
+pillow
+streamlit
+psutil
 
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch
