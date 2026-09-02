@@ -1,7 +1,9 @@
 [server]
 # Hard cap on uploaded file size (MB). Streamlit Cloud's free tier is
-# guaranteed ~1GB RAM (bursts to ~2.7GB, not reliably) -- an uncapped
-# upload of a large/uncompressed video is one of the easiest ways to
-# blow past that and crash the whole app. Combined with the in-app
-# downscaling + frame cap in app.py, this keeps things inside budget.
-maxUploadSize = 60
+# guaranteed ~1GB RAM (bursts to ~2.7GB, not reliably). app.py now
+# downscales every frame to 480px, caps total processed frames at 40,
+# and forces periodic garbage collection during video processing --
+# with those safeguards in place, the risk during PROCESSING is much
+# lower, so this cap only needs to guard against truly oversized
+# uploads, not clip normal test videos mid-transfer.
+maxUploadSize = 150
