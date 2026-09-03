@@ -257,9 +257,7 @@ with tab_predict:
             st.caption(f"Uploaded file: {file_size_mb:.1f} MB")
             if file_size_mb > 60:
                 st.warning(
-                    "This file is fairly large for the free-tier Streamlit Cloud "
-                    "memory limit (~1GB). If this crashes, try a shorter clip "
-                    "or a higher 'process every Nth frame' value."
+                    "Large video detected. SafeFall AI will sample frames and resize them before AI inference to keep processing efficient."
                 )
 
             tmp_path = Path(f"./_tmp_{uploaded.name}")
