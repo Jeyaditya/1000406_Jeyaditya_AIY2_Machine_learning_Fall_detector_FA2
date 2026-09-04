@@ -1,4 +1,487 @@
-# SafeFall AI
+SafeFall AI: Vision-Based Elderly Fall Detection and Activity Monitoring
+
+Live Application
+
+SafeFall AI Dashboard: Streamlit Community Cloud Deployment (Update with deployed URL)
+
+The deployed dashboard supports single-image analysis, surveillance-style video stream analysis, real-time skeleton overlay, 5-class posture classification, temporal fall incident grouping, model transparency inspectability, and session analytics.
+
+Project Overview
+
+Falls represent a critical safety hazard for elderly individuals, particularly when living independently or when immediate caregiver intervention is inaccessible. SafeFall AI is an end-to-end vision-based monitoring pipeline designed to automatically detect falls and classify routine human activities from visual input (images and video).
+
+Instead of relying on direct pixel-level RGB classification—which easily overfits to background decor, illumination, furniture, or camera vantage points—SafeFall AI abstracts visual scenes into human skeletal geometry.
+
+Pose. Predict. Protect.
+
+
+The system locates persons and extracts 17 anatomical keypoints via YOLO11n-Pose, converts these landmarks into an engineered 55-dimensional feature representation, scales them, and classifies posture via an optimized Random Forest classifier before passing raw frame predictions into temporal event clustering logic.
+
+Target Activity Classes
+
+Class
+
+Description
+
+Clinical / Safety Context
+
+fall
+
+Person detected in a horizontal, sudden, or fallen posture
+
+Immediate safety risk requiring event grouping and alert triggers
+
+walking
+
+Dynamic upright ambulation
+
+Routine ambulatory movement
+
+sitting
+
+Seated posture (chair, sofa, or resting position)
+
+Normal sedentary activity
+
+standing
+
+Upright stationary posture
+
+Stable vertical equilibrium
+
+normal
+
+General non-hazardous postures or neutral body orientations
+
+Baseline unclassified everyday activity
+
+Project Objectives
+
+Developed under Formative Assessment 2 (FA-2) — Model Selection, Training, Evaluation, and Deployment, the primary goals were:
+
+Human Detection & Pose Extraction: Detect human subjects and extract reliable 17-keypoint skeletons across varied camera angles.
+
+Pose Feature Engineering: Derive scale- and position-invariant geometric features (angles, bounding-box ratios, confidence weights).
+
+Model Selection & Evaluation: Benchmark classical ML (Random Forest) against Deep Learning (Multi-Layer Perceptron) using macro-weighted evaluation metrics.
+
+Temporal Event Aggregation: Prevent alarm fatigue by distinguishing consecutive frame-level fall predictions from singular real-world fall incidents.
+
+Production Engineering & Deployment: Build a hardened, interactive Streamlit interface capable of bounded CPU inference, large file processing, and collision-free session handling.
+
+System Architecture
+
+The pipeline strictly decouples visual perception, geometric feature extraction, machine learning classification, and downstream event alert logic:
+
+                     IMAGE / VIDEO INPUT (.jpg, .png, .mp4, .avi, .mov)
+                                     │
+                                     ▼
+                      YOLO11n-Pose Pretrained Model
+                                     │
+                                     ▼
+                          17 COCO Skeletal Keypoints
+                    (X, Y Normalized Coords + Confidences)
+                                     │
+                                     ▼
+                         Pose Feature Engineering
+                     (Joint Angles, Aspect Ratio, Tilt)
+                                     │
+                                     ▼
+                            55-D Feature Vector
+                                     │
+                                     ▼
+                         StandardScaler Normalization
+                                     │
+                                     ▼
+                          Random Forest Classifier
+                                (200 Trees)
+                                     │
+             ┌───────────────────────┼───────────────────────┐
+             ▼                       ▼                       ▼
+    Activity Classification   Confidence Score       Temporal Fall Logic
+      (5 Target Classes)       (Per-Frame %)       (Cooldown & Deduplication)
+             │                       │                       │
+             └───────────────────────┼───────────────────────┘
+                                     │
+                                     ▼
+                   Interactive Streamlit Monitoring Dashboard
+               (Overlay, Analytics, Video Timeline, Telemetry)
+
+
+Core Features & Engineering Details
+
+1. 55-Dimensional Geometric Feature Representation
+
+Rather than operating on arbitrary coordinate grids, the skeletal representation is mapped to a 55-dimensional feature vector invariant to subject distance from camera and frame position:
+
+$$\text{Total Features} = 17_X + 17_Y + 17_{\text{conf}} + 4_{\text{geometric}} = 55$$
+
+Keypoint Coordinates ($17 \times 2 = 34$ features): Normalized $X$ and $Y$ coordinates for all 17 COCO keypoints relative to bounding box boundaries.
+
+Keypoint Confidences ($17$ features): Model confidence scores for each individual joint detection.
+
+Geometric & Postural Features ($4$ features):
+
+Bounding-Box Aspect Ratio ($\frac{\text{Width}}{\text{Height}}$): Captures the sudden horizontal shift that accompanies ground contact.
+
+Torso Inclination Angle: Angular deviation of the spine (vector between hip center and shoulder center) relative to the vertical axis.
+
+Average Knee Angle: Joint flexion across both legs to separate seated postures from recumbent postures.
+
+Knee-Angle Asymmetry: Differential angle between left and right knees to capture gait and uneven collapse.
+
+2. Machine Learning Pipeline & Model Selection
+
+Two distinct architectures were developed and benchmarked during FA-2:
+
+Random Forest (Champion Model):
+
+200 decision trees.
+
+Balanced class weights (class_weight='balanced') to mitigate severe class imbalance between daily movements and falls.
+
+Inputs preprocessed using StandardScaler.
+
+Multi-Layer Perceptron (MLP Benchmark):
+
+Architecture: $\text{Input}(55) \to \text{Dense}(64, \text{ReLU}) \to \text{Dense}(32, \text{ReLU}) \to \text{Output}(5, \text{Softmax})$.
+
+Evaluated across cross-entropy loss convergence and validation macro-F1.
+
+3. Fall Event Grouping & Cooldown Logic
+
+Frame-by-frame classifiers generate independent predictions for every frame. In a 30 FPS surveillance recording, an individual remaining on the floor for 5 seconds generates 150 consecutive fall outputs.
+
+Cooldown Grouping: SafeFall AI applies an event-clustering threshold that binds proximate frame predictions into a single Grouped Fall Incident.
+
+Alert Triggering: Fall alerts trigger only on confident cluster onsets, eliminating multiple alert dispatches for one prolonged fall.
+
+4. Enterprise-Grade Robustness Safeguards
+
+During stress testing, the application incorporated several operational safeguards:
+
+Unique Temporary Filenames: Prevents file collisions between concurrent or sequential video uploads using dynamic temporary paths with automatic garbage collection.
+
+Stream Rewinding: Uploaded file streams are explicitly rewound (.seek(0)) prior to disk writes and OpenCV frame decoding.
+
+Unknown Frame Count Resilience: Robust handling of truncated or streaming video headers where OpenCV reports negative or zero total frame counts.
+
+Deduplicated Image Processing: Caching hashes of uploaded imagery to prevent redundant model passes and duplicated session history.
+
+Video Confidence Isolation: Video statistics compute confidence distributions strictly within the active media file context rather than polluting historical session state.
+
+Large File Support: Configured for video files up to 150 MB (tested against raw 70 MB uncompressed .avi files). Uses headless OpenCV (opencv-python-headless) for headless cloud deployment.
+
+Dataset Specifications
+
+SafeFall AI was trained and validated using the Le2i Fall Detection Dataset acquired from the University of Burgundy (IMVIA Laboratory) / Kaggle mirrors.
+
+Primary Sources:
+
+Le2i IMVIA Research Portal
+
+Kaggle Dataset Mirror
+
+Recorded Environments:
+
+Coffee_room_01
+
+Coffee_room_02
+
+Home_01
+
+Home_02
+
+Lecture_room
+
+Office
+
+Data Organization:
+
+Videos are provided in .avi format, accompanied by ground-truth annotation .txt files specifying start and end frames of fall events.
+
+Non-fall control videos feature 0 0 annotation tags.
+
+The raw dataset (~10 GB) is excluded from the repository.
+
+Development Stages: FA-1 to FA-2
+
+                       FA-1: PREPROCESSING & EXTRACTION
+ [Raw Videos & Annotations] ──► [Fall-Biased Sampling] ──► [YOLO11-Pose] ──► [55-D Keypoint Extraction]
+                                                                                        │
+                                                                                        ▼
+                         FA-2: ML MODELING & DEPLOYMENT
+ [Stratified Split (70/15/15)] ──► [StandardScaler] ──► [Random Forest (200)] ──► [Streamlit App Deployment]
+
+
+FA-1: Data Preparation Pipeline (fa1_pipeline.py)
+
+Dataset Discovery & Pairing: Maps every raw video to its ground-truth fall duration text file.
+
+Annotation Parsing: Resolves exact frame intervals representing initial instability, collapse, and recumbency.
+
+Fall-Biased Sampling: Implements non-uniform frame extraction, oversampling brief fall segments while subsampling static backgrounds.
+
+YOLO Pose Extraction: Runs YOLO11n-Pose on extracted frames, selecting the highest-confidence bounding box if multiple individuals appear.
+
+Postural Heuristics: Assigns activity classes using dataset labels augmented with geometric fallback heuristics for boundary frames.
+
+Feature Matrix Formulation: Structures vectors into normalized .npy / .csv arrays for model consumption.
+
+FA-2: Machine Learning & Validation (train_classifier.py)
+
+Stratified Splitting: 70% Train, 15% Validation, 15% Test, preserving class frequency distributions.
+
+Model Benchmark: Optimization of Random Forest hyperparameters vs. MLP training curves.
+
+Exportable Artifacts: Automated compilation of model.joblib, scaler.joblib, and model_info.json.
+
+Evaluation Metrics & Validation
+
+Performance Metrics
+
+$$\text{Accuracy} = \frac{\text{TP} + \text{TN}}{\text{Total}}, \quad \text{Macro F1} = \frac{1}{N}\sum_{i=1}^{N}\text{F1}_i$$
+
+Evaluated primarily on Macro F1-Score due to class imbalance between frequent activities (standing/walking) and infrequent events (falling).
+
+Metric
+
+Target / Specification
+
+Evaluated Classes
+
+5 (fall, walking, sitting, standing, normal)
+
+Input Representation
+
+55 Numerical Features (17 Keypoints + 4 Geometric Metrics)
+
+Primary Classifier
+
+Random Forest Classifier (200 Estimators)
+
+Validation Stratification
+
+70% Training / 15% Validation / 15% Testing
+
+QA Verification Suite
+
+65 checks executed, 0 failures
+
+QA & Robustness Verification Summary
+
+Prior to deployment, the application was verified across an exhaustive QA battery:
+
+Static Code Verification: Syntax integrity and typing compliance.
+
+Unit Tests: Geometric feature transformation logic and edge cases (e.g., zero keypoint detections).
+
+Pipeline Real-Inference Tests: Validated with authentic image data, confirming end-to-end execution through StandardScaler and RandomForest without mock shortcuts.
+
+Codec & Media Tests: Full validation across .mp4, .mov, and legacy uncompressed .avi surveillance feeds.
+
+AppTest Flows: Headless simulation of Streamlit sessions, UI state retention, and cooldown transitions.
+
+Technology Stack
+
+Component
+
+Library / Tool
+
+Function
+
+Language
+
+Python 3.13
+
+Core development platform
+
+Pose Estimation
+
+Ultralytics YOLO11n-Pose
+
+Human landmark and bounding box extraction
+
+Inference Backend
+
+PyTorch / Torchvision
+
+Neural execution backend for YOLO
+
+Computer Vision
+
+OpenCV (opencv-python-headless)
+
+Frame decoding, resizing, and graphical overlay rendering
+
+Feature Processing
+
+NumPy & Pandas
+
+Vector manipulation and dataset structuring
+
+Machine Learning
+
+Scikit-learn
+
+Scalers, Random Forest, MLP, metrics computation
+
+Model Serialization
+
+Joblib
+
+Saving and rapid loading of pipeline weights
+
+Visualization
+
+Matplotlib & Seaborn
+
+Confusion matrices and loss curve generation
+
+Web Interface
+
+Streamlit
+
+Interactive dashboard and telemetry visualization
+
+Dataset Source
+
+Kaggle API / Le2i IMVIA
+
+Video acquisition and ground-truth pairing
+
+Repository Structure
+
+SafeFall-AI/
+│
+├── app.py                      # Main Streamlit monitoring dashboard
+├── pose_utils.py               # 55-D feature engineering and geometric calculation utilities
+├── fa1_pipeline.py             # FA-1: Raw dataset parsing, frame extraction, & pose modeling
+├── train_classifier.py         # FA-2: Model training, evaluation, comparison, & export
+├── requirements.txt            # Python dependencies
+├── README.md                   # Project documentation
+│
+├── .streamlit/
+│   └── config.toml             # Server configurations & 150MB upload limits
+│
+├── fa1_outputs/                # Preprocessing artifacts, sample crops, and validation logs
+│
+└── fa2_outputs/
+    ├── models/
+    │   ├── model.joblib        # Trained Random Forest classifier
+    │   ├── scaler.joblib       # Fitted StandardScaler
+    │   └── model_info.json     # Architecture metadata and training hyperparameters
+    └── screenshots/            # Confusion matrices, validation graphs, and UI previews
+
+
+Local Installation & Setup
+
+1. Clone the Repository
+
+git clone https://github.com/Jeyaditya/1000406_Jeyaditya_AIY2_Machine_learning_Fall_detector_FA2.git
+cd 1000406_Jeyaditya_AIY2_Machine_learning_Fall_detector_FA2
+
+
+2. Initialize Virtual Environment
+
+# Linux / macOS
+python -m venv .venv
+source .venv/bin/activate
+
+# Windows
+python -m venv .venv
+.venv\Scripts\activate
+
+
+3. Install Dependencies
+
+pip install --upgrade pip
+pip install -r requirements.txt
+
+
+4. (Optional) Run Dataset Pipeline & Retrain Models
+
+To run data preparation from raw Le2i footage:
+
+# Requires Kaggle API key at ~/.kaggle/kaggle.json
+python fa1_pipeline.py
+python train_classifier.py
+
+
+5. Launch the Dashboard
+
+streamlit run app.py
+
+
+The application will be accessible at http://localhost:8501.
+
+Dashboard Walkthrough
+
+┌────────────────────────────────────────────────────────────────────────┐
+│ SafeFall AI: Vision-Based Monitoring Dashboard                         │
+├───────────────────┬────────────────────────────────────────────────────┤
+│ Navigation:       │ Telemetry Display:                                 │
+│ • Overview        │ [ Live Frame with YOLO Skeleton Overlay ]          │
+│ • Image Analysis  │ Status: FALL DETECTED (Confidence: 94.2%)          │
+│ • Video Monitor   │ Grouped Fall Incidents: 1                          │
+│ • Analytics       │ Active Class Distribution: [Bar Chart]             │
+│ • Model Info      │ Invariant Pose Metrics: Aspect Ratio: 1.84         │
+└───────────────────┴────────────────────────────────────────────────────┘
+
+
+Overview: High-level summary of active monitoring sessions, total frames analyzed, fall alerts triggered, and active model status.
+
+Image Analysis: Direct single-frame diagnostic mode. Upload an image (.jpg, .png), view 17-keypoint overlays, and evaluate 5-class probability distributions.
+
+Video Monitoring: Continuous surveillance simulation supporting .avi, .mp4, and .mov files with real-time pose tracking, dynamic timeline generation, and event cooldown alerts.
+
+Analytics: Session history visualization displaying confidence drift, activity classification distribution, and event timestamps.
+
+Model Information: Architectural documentation exposing confusion matrices, keypoint mappings, training loss curves, and environment profiles.
+
+Ethical Considerations & Responsible Use
+
+Disclaimer: SafeFall AI is an academic prototype and engineering proof-of-concept developed for educational evaluation under FA-2. It is not a certified medical diagnostic device or emergency dispatch system.
+
+Privacy-First Design: Unlike raw facial recognition systems, SafeFall AI discards biometric facial identities once keypoints are extracted. Predictions depend exclusively on skeletal topology.
+
+Human Oversight: Vision-based fall detection models can produce false positives (e.g., rapid lying down, floor exercises) or false negatives (heavy occlusion). This software is intended to assist human caregivers, not replace continuous human vigilance.
+
+Deployment Safeguards: Real-world implementations must secure visual input streams and enforce access controls to safeguard patient privacy in residential care environments.
+
+Project Status
+
+[x] Le2i dataset acquisition and multi-environment annotation parsing
+
+[x] Targeted fall-biased frame sampling pipeline
+
+[x] YOLO11n-Pose integration and 17-keypoint extraction
+
+[x] 55-dimensional scale- and translation-invariant feature engineering
+
+[x] Model exploration: Random Forest vs. Multi-Layer Perceptron (MLP)
+
+[x] Final model serialization (StandardScaler + RandomForest)
+
+[x] Temporal fall-event grouping and alarm cooldown logic
+
+[x] Interactive Streamlit monitoring dashboard
+
+[x] Legacy .avi, .mp4, and .mov media compatibility
+
+[x] Comprehensive QA testing (65 passed checks, 0 failures)
+
+[x] Cloud deployment readiness on Streamlit Community Cloud
+
+Author & Academic Metadata
+
+Author: A Jeyaditya
+
+Registration Number: 1000406
+
+Curriculum: Artificial Intelligence — Machine Learning and Deep Learning (FA-2)
+
+Project Name: SafeFall AI — Vision-Based Elderly Fall Detection and Activity Monitoring# SafeFall AI
 
 ## Vision-Based Elderly Fall Detection and Activity Monitoring
 
