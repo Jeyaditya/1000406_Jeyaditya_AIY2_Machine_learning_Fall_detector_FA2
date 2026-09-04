@@ -1639,20 +1639,6 @@ def page_model_information():
             else:
                 _html(empty_state("—", "No validation metrics available."))
 
-        # ---- Sample predictions (REAL screenshots) ----
-        pred_dir = SCREENSHOTS_DIR / "predictions"
-        if pred_dir.exists():
-            st.markdown("")
-            _html("<div class='sf-card'><div class='sf-card-title'>Sample Predictions — Held-Out Test Set</div>")
-            pred_files = sorted(pred_dir.glob("*.png"))[:8]
-            if pred_files:
-                pcols = st.columns(4)
-                for i, p in enumerate(pred_files):
-                    with pcols[i % 4]:
-                        st.image(str(p), width="stretch", caption=p.stem)
-            else:
-                _html(empty_state("—", "No sample prediction screenshots available."))
-            _html("</div>")
 
     # ---- Deployment challenges (rubric: discuss real-world challenges) ----
     st.markdown("")
