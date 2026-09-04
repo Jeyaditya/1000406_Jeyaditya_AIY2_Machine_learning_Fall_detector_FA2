@@ -24,7 +24,7 @@
 
 > **SafeFall AI Streamlit Dashboard**
 
-**Live App:** *Add deployed Streamlit URL here*
+**Live App:** [Link to travel to the live app](https://1000406jeyadityaaiy2machinelearningfalldetectorfa2-85wg5vqkbwx.streamlit.app/
 
 The deployed dashboard supports image and video analysis, pose visualization, activity classification, fall alerts, model evaluation, and session analytics.
 
