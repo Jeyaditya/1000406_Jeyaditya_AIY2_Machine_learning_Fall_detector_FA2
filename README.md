@@ -24,7 +24,7 @@
 
 > **SafeFall AI Streamlit Dashboard**
 
-**Live App:** [Link to travel to the live app](https://1000406jeyadityaaiy2machinelearningfalldetectorfa2-85wg5vqkbwx.streamlit.app/
+**Live App:** [Link to travel to the live app](https://1000406jeyadityaaiy2machinelearningfalldetectorfa2-85wg5vqkbwx.streamlit.app/)
 
 The deployed dashboard supports image and video analysis, pose visualization, activity classification, fall alerts, model evaluation, and session analytics.
 
@@ -1145,7 +1145,7 @@ General non-hazardous postures or neutral body orientations
 
 Baseline unclassified everyday activity
 
-Project Objectives
+## Project Objectives
 
 Developed under Formative Assessment 2 (FA-2) — Model Selection, Training, Evaluation, and Deployment, the primary goals were:
 
@@ -1159,7 +1159,7 @@ Temporal Event Aggregation: Prevent alarm fatigue by distinguishing consecutive 
 
 Production Engineering & Deployment: Build a hardened, interactive Streamlit interface capable of bounded CPU inference, large file processing, and collision-free session handling.
 
-System Architecture
+## System Architecture
 
 The pipeline strictly decouples visual perception, geometric feature extraction, machine learning classification, and downstream event alert logic:
 
@@ -1198,7 +1198,7 @@ The pipeline strictly decouples visual perception, geometric feature extraction,
                (Overlay, Analytics, Video Timeline, Telemetry)
 
 
-Core Features & Engineering Details
+## Core Features & Engineering Details
 
 1. 55-Dimensional Geometric Feature Representation
 
@@ -1262,7 +1262,7 @@ Video Confidence Isolation: Video statistics compute confidence distributions st
 
 Large File Support: Configured for video files up to 150 MB (tested against raw 70 MB uncompressed .avi files). Uses headless OpenCV (opencv-python-headless) for headless cloud deployment.
 
-Dataset Specifications
+## Dataset Specifications
 
 SafeFall AI was trained and validated using the Le2i Fall Detection Dataset acquired from the University of Burgundy (IMVIA Laboratory) / Kaggle mirrors.
 
@@ -1294,7 +1294,7 @@ Non-fall control videos feature 0 0 annotation tags.
 
 The raw dataset (~10 GB) is excluded from the repository.
 
-Development Stages: FA-1 to FA-2
+## Development Stages: FA-1 to FA-2
 
                        FA-1: PREPROCESSING & EXTRACTION
  [Raw Videos & Annotations] ──► [Fall-Biased Sampling] ──► [YOLO11-Pose] ──► [55-D Keypoint Extraction]
@@ -1328,7 +1328,7 @@ Exportable Artifacts: Automated compilation of model.joblib, scaler.joblib, and 
 
 Evaluation Metrics & Validation
 
-Performance Metrics
+## Performance Metrics
 
 $$\text{Accuracy} = \frac{\text{TP} + \text{TN}}{\text{Total}}, \quad \text{Macro F1} = \frac{1}{N}\sum_{i=1}^{N}\text{F1}_i$$
 
@@ -1440,7 +1440,7 @@ Kaggle API / Le2i IMVIA
 
 Video acquisition and ground-truth pairing
 
-Repository Structure
+## Repository Structure
 
 SafeFall-AI/
 │
@@ -1464,7 +1464,7 @@ SafeFall-AI/
     └── screenshots/            # Confusion matrices, validation graphs, and UI previews
 
 
-Local Installation & Setup
+## Local Installation & Setup
 
 1. Clone the Repository
 
