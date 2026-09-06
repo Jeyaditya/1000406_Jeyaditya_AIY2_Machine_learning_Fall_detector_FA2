@@ -1253,51 +1253,7 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                         unsafe_allow_html=True,
                     )
 
-                    progress_slot.markdown(
-                        f"""
-                        <div class='sf-card'>
-                            <div class='sf-card-title'>
-                                Analysis In Progress
-                            </div>
-
-                            <div style='font-size:14px;color:var(--text);'>
-                                Processing frame
-                                <b>{frame_idx}</b>{frame_total_txt}
-                            </div>
-
-                            <div class='sf-note'
-                                 style='margin-top:6px;'>
-                                Activity:
-                                <b style='color:{CLASSES_COLORS.get(label, ACCENT)};'>
-                                    {CLASS_DISPLAY.get(label, label.title())}
-                                </b>
-                            </div>
-
-                            <div class='sf-note'>
-                                Confidence:
-                                {confidence * 100:.1f}%
-                            </div>
-
-                            <div class='sf-note'>
-                                Frames analyzed:
-                                {processed + 1}
-                            </div>
-
-                            <div class='sf-note'>
-                                Coverage:
-                                Full video
-                            </div>
-
-                            <div class='sf-note'>
-                                Current status:
-                                Monitoring…
-                            </div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-
-
+                
                     if (
                         label == "fall"
                         and confidence >= fall_confidence_gate
