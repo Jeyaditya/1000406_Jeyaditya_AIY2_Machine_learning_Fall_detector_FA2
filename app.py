@@ -994,16 +994,19 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
 def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
     section_title("Video Monitoring", "LIVE CONSOLE")
 
-
     ctrl1, ctrl2, ctrl3 = st.columns(3)
+
     with ctrl1:
         sample_every_n = st.slider(
             "Sampling interval (every Nth frame)",
             5, 60, 15,
-            help="Higher = faster, coarser analysis. Lower = denser sampling.",
+            help=(
+                "Controls analysis density. The selected frames are "
+                "distributed across the entire video."
+            ),
         )
-    with ctrl2:
 
+    with ctrl2:
         fall_gate_pct = st.slider(
             "Fall confidence threshold",
             30, 90, int(round(FALL_DEFAULT_GATE * 100)), 1,
@@ -1011,6 +1014,7 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
             help="Higher threshold = fewer but more confident alerts.",
         )
         fall_confidence_gate = fall_gate_pct / 100.0
+
     with ctrl3:
         event_cooldown_s = st.slider(
             "Event cooldown (seconds)",
@@ -1024,22 +1028,52 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         key="vid_uploader",
         label_visibility="collapsed",
     )
-    _html("<div class='sf-note' style='margin-top:2px;'>Supported formats: AVI &nbsp;•&nbsp; MP4 &nbsp;•&nbsp; MOV &nbsp;•&nbsp; M4V &nbsp;•&nbsp; MKV</div>")
+
+    _html(
+        "<div class='sf-note' style='margin-top:2px;'>"
+        "Supported formats: AVI &nbsp;•&nbsp; MP4 &nbsp;•&nbsp; MOV "
+        "&nbsp;•&nbsp; M4V &nbsp;•&nbsp; MKV"
+        "</div>"
+    )
 
     if uploaded is None:
-        _html(empty_state("🎬", "Ready for monitoring.<br/>Upload an AVI, MP4, or MOV video to run the live monitoring console."))
+        _html(
+            empty_state(
+                "🎬",
+                "Ready for monitoring.<br/>"
+                "Upload an AVI, MP4, or MOV video to run "
+                "the live monitoring console."
+            )
+        )
         return
 
-
     file_size_mb = uploaded.size / (1024 * 1024)
-    file_info = f"File: {uploaded.name} &nbsp;·&nbsp; {file_size_mb:.1f} MB"
+    file_info = (
+        f"File: {uploaded.name} &nbsp;·&nbsp; {file_size_mb:.1f} MB"
+    )
     st.markdown(f"**{file_info}**")
+
     if file_size_mb > 60:
-        _html("<div class='sf-note'>ℹ Larger videos may take longer to analyze. Frames are sampled and downscaled to 480px before inference for efficiency.</div>")
+        _html(
+            "<div class='sf-note'>"
+            "ℹ Larger videos may take longer to analyze. "
+            "Frames are sampled and downscaled to 480px before "
+            "inference for efficiency."
+            "</div>"
+        )
 
-    if not st.button("▶ Analyze Video", type="primary", width="content"):
+    if not st.button(
+        "▶ Analyze Video",
+        type="primary",
+        width="content",
+    ):
+        return
 
-    tmp_path = stream_upload_to_tmp(uploaded, "safefall_upload")
+    tmp_path = stream_upload_to_tmp(
+        uploaded,
+        "safefall_upload"
+    )
+
     cap, total_frames, fps = open_video_robustly(tmp_path)
 
     if cap is None:
@@ -1047,136 +1081,416 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
             tmp_path.unlink(missing_ok=True)
         except Exception:
             pass
-        _html("<div class='sf-alert-fall' style='border-color:rgba(245,158,11,0.5);background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(17,24,39,0.6));'><div class='head' style='color:#fcd34d;'>⚠ Unable to read this video</div><div class='meta'>The file may use an unsupported codec, be corrupt, or contain no readable frames. Try another file or format.</div></div>")
+
+        _html(
+            "<div class='sf-alert-fall' "
+            "style='border-color:rgba(245,158,11,0.5);"
+            "background:linear-gradient(135deg,"
+            "rgba(245,158,11,0.16),"
+            "rgba(17,24,39,0.6));'>"
+            "<div class='head' style='color:#fcd34d;'>"
+            "⚠ Unable to read this video"
+            "</div>"
+            "<div class='meta'>"
+            "The file may use an unsupported codec, be corrupt, "
+            "or contain no readable frames. Try another file or format."
+            "</div></div>"
+        )
         return
+
     total_known = total_frames > 0
-    if not total_known:
 
+
+    sample_indices = None
+    sample_index_set = None
+    target_frames = 0
+
+    if total_known:
+
+        target_frames = max(
+            1,
+            min(
+                MAX_FRAMES_PER_VIDEO,
+                int(np.ceil(total_frames / sample_every_n)),
+            ),
+        )
+
+        sample_indices = np.linspace(
+            0,
+            total_frames - 1,
+            target_frames,
+            dtype=int,
+        )
+
+        sample_indices = np.unique(sample_indices)
+
+        sample_index_set = set(
+            sample_indices.tolist()
+        )
+
+    else:
         status_note = st.empty()
-        status_note.caption("ℹ Frame count not reported by this video's header — processing sequentially until the stream ends.")
 
+        status_note.caption(
+            "ℹ Frame count not reported by this video's header — "
+            "processing sequentially until the stream ends."
+        )
 
-    _html("<div class='sf-card' style='margin-bottom:12px;'><div class='sf-card-title'>Live Monitoring Console</div></div>")
+    duration_s = (
+        total_frames / fps
+        if total_known and fps and fps > 0
+        else 0.0
+    )
+
+    _html(
+        "<div class='sf-card' style='margin-bottom:12px;'>"
+        "<div class='sf-card-title'>"
+        "Live Monitoring Console"
+        "</div></div>"
+    )
+
     console_left, console_right = st.columns([1.35, 1])
+
     with console_left:
-        preview_slot = st.empty() 
-        _html("<div class='sf-note' style='text-align:center;'>Pose visualizer — skeleton follows the subject frame-by-frame</div>")
+        preview_slot = st.empty()
+
+        _html(
+            "<div class='sf-note' style='text-align:center;'>"
+            "Pose visualizer — skeleton follows the subject "
+            "frame-by-frame"
+            "</div>"
+        )
+
     with console_right:
-        pred_slot = st.empty()      
-        progress_slot = st.empty()  
-        status_slot = st.empty()    
+        pred_slot = st.empty()
+        progress_slot = st.empty()
+        status_slot = st.empty()
 
     fall_events: list[dict] = []
     last_fall_frame = None
+
     frame_idx = 0
     processed = 0
-    hit_frame_cap = False
 
     video_confidences: list[float] = []
-    duration_s = (total_frames / fps) if (total_known and fps) else 0.0
 
     try:
+
         while True:
+
             ok_read, frame = cap.read()
+
             if not ok_read:
                 break
-            if frame_idx % sample_every_n == 0:
-                if processed >= MAX_FRAMES_PER_VIDEO:
-                    hit_frame_cap = True
-                    break
 
-                small_frame = downscale_frame(frame)
-                del frame 
 
-                label, confidence, annotated, _ = predict_frame(
-                    small_frame, yolo_model, clf, scaler, label_encoder
+            if sample_index_set is not None:
+
+                should_process = (
+                    frame_idx in sample_index_set
                 )
 
-                frame_total_txt = f" / {total_frames}" if total_known else ""
+            else:
+                should_process = (
+                    frame_idx % sample_every_n == 0
+                    and processed < MAX_FRAMES_PER_VIDEO
+                )
+
+            if should_process:
+
+                small_frame = downscale_frame(frame)
+                del frame
+
+                label, confidence, annotated, _ = predict_frame(
+                    small_frame,
+                    yolo_model,
+                    clf,
+                    scaler,
+                    label_encoder,
+                )
+
+                frame_total_txt = (
+                    f" / {total_frames}"
+                    if total_known
+                    else ""
+                )
 
                 if label is not None:
-                    log_prediction(uploaded.name, label, confidence, round(frame_idx / fps, 2))
-                    video_confidences.append(float(confidence)) 
+
+                    timestamp_s = (
+                        frame_idx / fps
+                        if fps and fps > 0
+                        else 0.0
+                    )
+
+                    log_prediction(
+                        uploaded.name,
+                        label,
+                        confidence,
+                        round(timestamp_s, 2),
+                    )
+
+                    video_confidences.append(
+                        float(confidence)
+                    )
+
                     preview_slot.image(
                         annotated,
-                        caption=f"Frame {frame_idx} ({frame_idx / fps:.1f}s) — {CLASS_DISPLAY.get(label, label.title())} ({confidence*100:.0f}%)",
+                        caption=(
+                            f"Frame {frame_idx}"
+                            f" ({timestamp_s:.1f}s) — "
+                            f"{CLASS_DISPLAY.get(label, label.title())}"
+                            f" ({confidence * 100:.0f}%)"
+                        ),
                         width="stretch",
                     )
-                    pred_slot.markdown(prediction_hero(label, confidence), unsafe_allow_html=True)
-                    progress_slot.markdown(f"""
-                    <div class='sf-card'>
-                        <div class='sf-card-title'>Analysis In Progress</div>
-                        <div style='font-size:14px;color:var(--text);'>Processing frame <b>{frame_idx}</b>{frame_total_txt}</div>
-                        <div class='sf-note' style='margin-top:6px;'>Activity: <b style='color:{CLASSES_COLORS.get(label, ACCENT)};'>{CLASS_DISPLAY.get(label, label.title())}</b></div>
-                        <div class='sf-note'>Confidence: {confidence*100:.1f}%</div>
-                        <div class='sf-note'>Frames analyzed: {processed + 1}</div>
-                        <div class='sf-note'>Current status: Monitoring…</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+
+                    pred_slot.markdown(
+                        prediction_hero(
+                            label,
+                            confidence,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+                    progress_slot.markdown(
+                        f"""
+                        <div class='sf-card'>
+                            <div class='sf-card-title'>
+                                Analysis In Progress
+                            </div>
+
+                            <div style='font-size:14px;color:var(--text);'>
+                                Processing frame
+                                <b>{frame_idx}</b>{frame_total_txt}
+                            </div>
+
+                            <div class='sf-note'
+                                 style='margin-top:6px;'>
+                                Activity:
+                                <b style='color:{CLASSES_COLORS.get(label, ACCENT)};'>
+                                    {CLASS_DISPLAY.get(label, label.title())}
+                                </b>
+                            </div>
+
+                            <div class='sf-note'>
+                                Confidence:
+                                {confidence * 100:.1f}%
+                            </div>
+
+                            <div class='sf-note'>
+                                Frames analyzed:
+                                {processed + 1}
+                            </div>
+
+                            <div class='sf-note'>
+                                Coverage:
+                                Full video
+                            </div>
+
+                            <div class='sf-note'>
+                                Current status:
+                                Monitoring…
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
 
-                    if label == "fall" and confidence >= fall_confidence_gate:
+                    if (
+                        label == "fall"
+                        and confidence >= fall_confidence_gate
+                    ):
+
                         within_cooldown = (
                             last_fall_frame is not None
-                            and (frame_idx - last_fall_frame) / fps <= event_cooldown_s
+                            and fps
+                            and fps > 0
+                            and (
+                                (frame_idx - last_fall_frame)
+                                / fps
+                            ) <= event_cooldown_s
                         )
+
                         if within_cooldown:
-                            fall_events[-1]["end_timestamp_s"] = round(frame_idx / fps, 2)
-                            fall_events[-1]["confidence"] = max(
-                                fall_events[-1]["confidence"], confidence
+
+                            fall_events[-1][
+                                "end_timestamp_s"
+                            ] = round(
+                                timestamp_s,
+                                2,
                             )
+
+                            fall_events[-1][
+                                "confidence"
+                            ] = max(
+                                fall_events[-1]["confidence"],
+                                confidence,
+                            )
+
                         else:
-                            fall_events.append({
-                                "source": uploaded.name,
-                                "frame": frame_idx,
-                                "start_timestamp_s": round(frame_idx / fps, 2),
-                                "end_timestamp_s": round(frame_idx / fps, 2),
-                                "confidence": confidence,
-                            })
+
+                            fall_events.append(
+                                {
+                                    "source": uploaded.name,
+                                    "frame": frame_idx,
+                                    "start_timestamp_s": round(
+                                        timestamp_s,
+                                        2,
+                                    ),
+                                    "end_timestamp_s": round(
+                                        timestamp_s,
+                                        2,
+                                    ),
+                                    "confidence": confidence,
+                                }
+                            )
+
                         last_fall_frame = frame_idx
+
                 else:
-                    progress_slot.markdown(f"""
-                    <div class='sf-card'>
-                        <div class='sf-card-title'>Analysis In Progress</div>
-                        <div style='font-size:14px;color:var(--text);'>Processing frame <b>{frame_idx}</b>{frame_total_txt}</div>
-                        <div class='sf-note' style='margin-top:6px;'>Activity: <b style='color:#9ca3af;'>No person detected</b></div>
-                        <div class='sf-note'>Frames analyzed: {processed + 1}</div>
-                        <div class='sf-note'>Current status: Scanning…</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+
+                    progress_slot.markdown(
+                        f"""
+                        <div class='sf-card'>
+                            <div class='sf-card-title'>
+                                Analysis In Progress
+                            </div>
+
+                            <div style='font-size:14px;color:var(--text);'>
+                                Processing frame
+                                <b>{frame_idx}</b>{frame_total_txt}
+                            </div>
+
+                            <div class='sf-note'
+                                 style='margin-top:6px;'>
+                                Activity:
+                                <b style='color:#9ca3af;'>
+                                    No person detected
+                                </b>
+                            </div>
+
+                            <div class='sf-note'>
+                                Frames analyzed:
+                                {processed + 1}
+                            </div>
+
+                            <div class='sf-note'>
+                                Coverage:
+                                Full video
+                            </div>
+
+                            <div class='sf-note'>
+                                Current status:
+                                Scanning…
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
                 del annotated
+
                 processed += 1
 
                 if processed % GC_EVERY_N_FRAMES == 0:
                     gc.collect()
+
             else:
+
                 del frame
+
             frame_idx += 1
+
             if total_known:
-                status_slot.progress(min(frame_idx / total_frames, 1.0))
-                status_slot.caption(f"Processed {processed} sampled frames / {frame_idx} total frames · Memory: {_mem_txt()}")
+
+                status_slot.progress(
+                    min(
+                        frame_idx / total_frames,
+                        1.0,
+                    )
+                )
+
+                status_slot.caption(
+                    f"Processed {processed} sampled frames / "
+                    f"{frame_idx} total frames · "
+                    f"Memory: {_mem_txt()}"
+                )
+
             else:
-                status_slot.caption(f"Processed {processed} sampled frames · {frame_idx} total frames read · Memory: {_mem_txt()}")
+
+                status_slot.caption(
+                    f"Processed {processed} sampled frames · "
+                    f"{frame_idx} total frames read · "
+                    f"Memory: {_mem_txt()}"
+                )
+
     except MemoryError:
+
         status_slot.empty()
-        _html("<div class='sf-alert-fall' style='border-color:rgba(245,158,11,0.5);background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(17,24,39,0.6));'><div class='head' style='color:#fcd34d;'>⚠ Memory pressure</div><div class='meta'>Ran low on memory partway through. Try a shorter clip, a larger sampling interval, or run locally.</div></div>")
+
+        _html(
+            "<div class='sf-alert-fall' "
+            "style='border-color:rgba(245,158,11,0.5);"
+            "background:linear-gradient(135deg,"
+            "rgba(245,158,11,0.16),"
+            "rgba(17,24,39,0.6));'>"
+
+            "<div class='head' style='color:#fcd34d;'>"
+            "⚠ Memory pressure"
+            "</div>"
+
+            "<div class='meta'>"
+            "Ran low on memory partway through. "
+            "Try a shorter clip, a larger sampling interval, "
+            "or run locally."
+            "</div></div>"
+        )
+
     finally:
+
         cap.release()
+
         try:
             tmp_path.unlink(missing_ok=True)
         except Exception:
             pass
+
         gc.collect()
+
 
     if fall_events:
         merge_fall_events(fall_events)
+
     if not total_known:
 
         try:
-            status_note.caption(f"✓ Stream ended after {frame_idx} frames read ({processed} sampled & analyzed).")
+            status_note.caption(
+                f"✓ Stream ended after {frame_idx} frames read "
+                f"({processed} sampled & analyzed)."
+            )
         except Exception:
             pass
+
+
+    if total_known:
+
+        coverage_note = (
+            f"✓ Full video scanned · "
+            f"{processed} frames analyzed across "
+            f"{frame_idx} total frames."
+        )
+
+        if target_frames:
+            coverage_note += (
+                f" Sampling budget: {target_frames}."
+            )
+
+        status_slot.caption(
+            coverage_note
+        )
+
 
     # ================= RESULTS SUMMARY =================
     st.markdown("")
