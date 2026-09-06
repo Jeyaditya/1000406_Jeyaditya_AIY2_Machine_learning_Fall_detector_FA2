@@ -1,24 +1,3 @@
-"""
-train_classifier.py — SafeFall AI FA-2, Step 5 & 6
-====================================================
-Run with:  python train_classifier.py
-
-Loads the labeled frames your (fixed) fa1_pipeline.py already produced,
-re-extracts pose-geometry feature vectors (via pose_utils.py, so training
-and the Streamlit app use IDENTICAL features), trains two candidate
-models (Random Forest and a small MLP neural net), compares them, and
-saves whichever wins + every chart/screenshot Step 6 of the FA-2 brief
-asks for.
-
-Why two models instead of one CNN: your FA-2 brief explicitly lists
-Random Forest as an acceptable model choice alongside CNN. A CNN on raw
-224x224 images would be slow and unreliable to train on a 940MX; a
-compact feature vector (keypoint positions + the same geometry your
-storyboard already explains) trains in seconds on CPU and is easy to
-explain in your README. The MLP gives you a genuine loss curve for the
-"Loss Graph" requirement; the Random Forest is a strong, fast baseline.
-"""
-
 import json
 from pathlib import Path
 
@@ -43,11 +22,11 @@ from pose_utils import image_to_feature, FEATURE_NAMES
 # CONFIG
 # ============================================================
 
-FA1_OUTPUT_ROOT = Path("./fa1_outputs")          # where fa1_pipeline.py wrote its outputs
+FA1_OUTPUT_ROOT = Path("./fa1_outputs")         
 OUTPUT_ROOT = Path("./fa2_outputs")
 CLASSES = ["fall", "walking", "sitting", "standing", "normal"]
 RANDOM_SEED = 42
-DEVICE = "cpu"   # same reasoning as FA-1 — 940MX isn't worth fighting for this workload
+DEVICE = "cpu"  
 
 
 def load_combined_manifest():
@@ -63,9 +42,6 @@ def load_combined_manifest():
 
 
 def extract_features_for_dataset(model, manifest_df):
-    """Re-runs YOLO pose on every image and builds the feature matrix.
-    This is the one step that actually needs YOLO — everything else in
-    this script is plain sklearn and runs fast."""
     features, labels, paths = [], [], []
     skipped = 0
 
@@ -223,14 +199,13 @@ def main():
               "populated fa1_outputs/balanced correctly before training.")
 
     label_encoder = LabelEncoder()
-    label_encoder.fit(CLASSES)  # fix class order regardless of what's present
+    label_encoder.fit(CLASSES)
     y_encoded = label_encoder.transform(y)
 
     print("\n" + "=" * 70)
     print("STEP 3 — 70/15/15 train/val/test split")
     print("=" * 70)
     X_train, X_val, X_test, y_train, y_val, y_test = three_way_split(X, y_encoded)
-    # keep matching path lists for the screenshot step later
     _, paths_temp, _, _ = train_test_split(paths, y_encoded, test_size=0.15,
                                             stratify=y_encoded, random_state=RANDOM_SEED)
     print(f"  train={len(X_train)}  val={len(X_val)}  test={len(X_test)}")
