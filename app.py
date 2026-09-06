@@ -1,25 +1,3 @@
-"""
-app.py — SafeFall AI — Professional Healthcare Monitoring Dashboard
-====================================================================
-AI-Powered Elderly Fall Detection & Activity Monitoring System.
-
-Run locally:
-    streamlit run app.py
-
-Deploy to Streamlit Community Cloud pointing at this file, with the
-repo-root requirements.txt (the CPU / headless version).
-
-This dashboard preserves the REAL machine-learning pipeline:
-    YOLO11n-Pose  ->  17 keypoints  ->  55-dim pose/geometric features
-    ->  Random Forest classifier  ->  activity label + confidence
-    ->  fall detection + emergency alert.
-
-It only redesigns the USER INTERFACE around that pipeline. The shared
-feature-extraction module (pose_utils.py) is used UNCHANGED so the
-feature vector a model is TRAINED on matches the one it is FED at
-inference time.
-"""
-
 from __future__ import annotations
 
 import gc
@@ -38,10 +16,10 @@ from PIL import Image
 
 from pose_utils import image_to_feature
 
-# Optional deps — kept optional so the app still boots if missing.
+
 try:
     import joblib
-except ImportError:  # pragma: no cover
+except ImportError:
     joblib = None
 
 try:
@@ -49,13 +27,13 @@ try:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     _HAS_MPL = True
-except ImportError:  # pragma: no cover
+except ImportError:
     _HAS_MPL = False
 
 try:
     import psutil
     _HAS_PSUTIL = True
-except ImportError:  # pragma: no cover
+except ImportError:
     _HAS_PSUTIL = False
 
 
@@ -67,23 +45,23 @@ MODEL_DIR = Path("./fa2_outputs/models")
 SCREENSHOTS_DIR = Path("./fa2_outputs/screenshots")
 INFO_PATH = MODEL_DIR / "model_info.json"
 
-MAX_FRAME_DIMENSION = 480      # every frame downscaled to this before inference
-MAX_FRAMES_PER_VIDEO = 40      # hard ceiling on inference calls per video
-GC_EVERY_N_FRAMES = 5          # periodic garbage collection in the video loop
-HISTORY_CAP = 200              # retain the most recent N prediction records
-FALL_DEFAULT_GATE = 0.55       # default fall-confidence threshold
-FALL_DEFAULT_COOLDOWN = 3      # default event cooldown (seconds)
+MAX_FRAME_DIMENSION = 480      
+MAX_FRAMES_PER_VIDEO = 40      
+GC_EVERY_N_FRAMES = 5          
+HISTORY_CAP = 200             
+FALL_DEFAULT_GATE = 0.55      
+FALL_DEFAULT_COOLDOWN = 3      
 
-# Single restrained accent palette (dark clinical technology aesthetic)
-ACCENT = "#22d3ee"          # cyan/teal accent
+
+ACCENT = "#22d3ee"          
 ACCENT_SOFT = "#0e7490"
-DANGER = "#ef4444"          # red — fall / alert
-WARNING = "#f59e0b"         # amber — caution
-SUCCESS = "#22c55e"         # green — safe / normal
-SURFACE = "#111827"         # card surface (slightly lighter than bg)
+DANGER = "#ef4444"         
+WARNING = "#f59e0b"         
+SUCCESS = "#22c55e"         
+SURFACE = "#111827"     
 BORDER = "#1f2937"
 
-# Activity colors (used consistently across charts & cards)
+
 CLASSES_COLORS = {
     "fall": "#ef4444",
     "walking": "#22d3ee",
@@ -92,7 +70,7 @@ CLASSES_COLORS = {
     "normal": "#22c55e",
 }
 
-# Display order + title-case labels for the five classes
+
 CLASS_DISPLAY_ORDER = ["fall", "walking", "sitting", "standing", "normal"]
 CLASS_DISPLAY = {
     "fall": "Fall",
@@ -516,9 +494,9 @@ def load_model_info() -> dict | None:
 def init_state() -> None:
     ss = st.session_state
     if "history" not in ss:
-        ss.history = []  # {time, source, label, confidence, timestamp_s?}
+        ss.history = [] 
     if "fall_events" not in ss:
-        ss.fall_events = []  # {frame, start_timestamp_s, end_timestamp_s, confidence}
+        ss.fall_events = [] 
 
 
 def log_prediction(source: str, label: str, confidence: float, timestamp_s: float | None = None) -> None:
@@ -593,16 +571,6 @@ def downscale_frame(frame_bgr, max_dim: int = MAX_FRAME_DIMENSION):
 # ============================================================
 
 def predict_frame(frame_bgr, yolo_model, clf, scaler, label_encoder):
-    """Run the REAL pipeline on one frame.
-
-    Returns (label, confidence, annotated_rgb, prob_breakdown) or
-    (None, None, annotated, None) when no confident person is detected.
-
-    prob_breakdown is a dict {class_name: probability} for every class,
-    straight from the REAL classifier — never fabricated.
-    """
-    # torch.inference_mode() is applied inside ultralytics' predict() for the
-    # YOLO model; the classifier is sklearn (no torch graph).
     feature, result = image_to_feature(yolo_model, frame_bgr, device=DEVICE)
     annotated = result.plot()[:, :, ::-1]  # BGR -> RGB for display
 
@@ -613,7 +581,6 @@ def predict_frame(frame_bgr, yolo_model, clf, scaler, label_encoder):
     probs = clf.predict_proba(feature_s)[0]
     pred_idx = int(np.argmax(probs))
     label = label_encoder.inverse_transform([pred_idx])[0]
-    # label may come back as numpy str — normalise to plain str
     label = str(label)
     confidence = float(probs[pred_idx])
     prob_breakdown = {str(k): float(v) for k, v in zip(label_encoder.classes_, probs.tolist())}
@@ -631,7 +598,6 @@ def history_df() -> pd.DataFrame:
 
 
 def activity_counts() -> dict:
-    """Count of each class in session history — only REAL predictions."""
     counts = {c: 0 for c in CLASS_DISPLAY_ORDER}
     for h in st.session_state.history:
         counts[h["label"]] = counts.get(h["label"], 0) + 1
@@ -672,7 +638,6 @@ def activity_distribution_chart():
 
 
 def confidence_breakdown_bars(prob_breakdown: dict):
-    """Render the REAL per-class probability breakdown as labelled meters."""
     if not prob_breakdown:
         return
     items = sorted(prob_breakdown.items(), key=lambda kv: -kv[1])
@@ -697,21 +662,6 @@ def confidence_breakdown_bars(prob_breakdown: dict):
 # ============================================================
 
 def stream_upload_to_tmp(uploaded, base_name: str) -> Path:
-    """Stream uploaded bytes to a session-safe, uniquely-named temp file.
-
-    The file name is unique per call (tempfile.mkstemp), so concurrent
-    sessions never collide on a shared path like /tmp/safefall_upload.avi.
-    A sanitised, fixed base name (NOT the raw uploaded filename) is used so
-    an uploaded filename can never escape the temp directory or overwrite
-    arbitrary files. The original extension is preserved only after
-    validation against an allow-list.
-
-    Note: this is the Python-side temp copy of the browser-uploaded file.
-    The browser→Streamlit transfer itself is handled by Streamlit; only the
-    server-side copy is made reliable here (seek(0) + chunked write).
-    """
-    # FIX 4: guarantee the file pointer is at byte 0 so repeated analyses
-    # of the same upload start from the beginning, not mid-file.
     try:
         uploaded.seek(0)
     except Exception:
@@ -724,14 +674,13 @@ def stream_upload_to_tmp(uploaded, base_name: str) -> Path:
             safe_ext = ext
             break
     if not safe_ext:
-        safe_ext = ".avi"  # fallback; OpenCV will tell us if it can't read it
+        safe_ext = ".avi"
 
-    # FIX 3: unique per-call temp path (no cross-session collisions).
     fd, tmp_name = tempfile.mkstemp(prefix=f"sf_{base_name}_", suffix=safe_ext)
     tmp_path = Path(tmp_name)
     try:
         with os.fdopen(fd, "wb") as f:
-            # stream in 1 MB chunks — avoids materialising the whole file in RAM
+
             for chunk in iter(lambda: uploaded.read(1024 * 1024), b""):
                 f.write(chunk)
     except Exception:
@@ -744,8 +693,6 @@ def stream_upload_to_tmp(uploaded, base_name: str) -> Path:
 
 
 def open_video_robustly(tmp_path: Path):
-    """Open a video with OpenCV. Returns (cap, total_frames, fps) or
-    (None, 0, 0.0) when the file can't be read at all."""
     cap = cv2.VideoCapture(str(tmp_path))
     if not cap.isOpened():
         return None, 0, 0.0
@@ -783,13 +730,10 @@ def render_sidebar(model_ok: bool, clf_ok: bool, yolo_ok: bool) -> None:
         <hr class='sf-divider'/>
         """)
 
-        # live session KPIs in the sidebar
         counts = activity_counts()
         total = sum(counts.values())
         c1, c2 = st.columns(2)
         c1.metric("Total predictions", total)
-        # FIX 1: incidents = grouped fall events (cooldown-merged), not raw
-        # fall-classified frames. Raw frames are shown as "Fall Predictions".
         c2.metric("Fall incidents", len(st.session_state.fall_events))
         st.caption(f"Inference device: **CPU** · No GPU required.")
 
@@ -812,15 +756,11 @@ def page_overview():
     section_title("Overview", "DASHBOARD")
     counts = activity_counts()
     total = sum(counts.values())
-    # FIX 1: incidents are grouped (cooldown-merged) events, not raw
-    # fall-classified frames/predictions.
     fall_incidents = len(st.session_state.fall_events)
     fall_predictions = counts["fall"]
-    # Non-fall = every activity class except fall (walking/sitting/standing/normal)
     nonfall_total = counts["normal"] + counts["walking"] + counts["sitting"] + counts["standing"]
     conf = avg_confidence()
 
-    # ---- KPI row (REAL session data) ----
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         kpi_card("Total Activities", total if total else 0,
@@ -841,7 +781,7 @@ def page_overview():
 
     st.markdown("")
 
-    # ---- Monitoring status ----
+
     if total:
         latest = st.session_state.history[-1]
         status_msg = f"Monitoring active — last activity: {CLASS_DISPLAY.get(latest['label'], latest['label'])} at {latest['time']}"
@@ -862,8 +802,6 @@ def page_overview():
         """)
 
     st.markdown("")
-
-    # ---- System explanation + pipeline ----
     left, right = st.columns([1.05, 1])
     with left:
         _html("""
@@ -899,7 +837,6 @@ def page_overview():
 
     st.markdown("")
 
-    # ---- Activity distribution + recent activity ----
     a1, a2 = st.columns([1, 1.15])
     with a1:
         _html("<div class='sf-card'><div class='sf-card-title'>Activity Distribution</div>")
@@ -945,25 +882,18 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
         _html(empty_state("🖼️", "Ready for monitoring.<br/>Upload a JPG, JPEG, or PNG image to analyze a single frame."))
         return
 
-    # ---- FIX 6: analyze each uploaded file exactly once per session ----
-    # Streamlit re-executes this script on every interaction (tab switch,
-    # slider move, button click). Without this guard the SAME image would be
-    # re-analyzed and re-logged into history on every rerun. We fingerprint
-    # the file CONTENT (sha256) — a rerun with the same bytes reuses the
-    # stored REAL result and adds no duplicate history entry.
     content_hash = None
     try:
         hasher = hashlib.sha256()
         for chunk in iter(lambda: uploaded.read(1024 * 1024), b""):
             hasher.update(chunk)
-        uploaded.seek(0)  # rewind so decoding starts at byte 0
+        uploaded.seek(0)  
         content_hash = hasher.hexdigest()
     except Exception:
         content_hash = None
 
     cached = st.session_state.get("last_image_analysis") if content_hash else None
     if cached is not None and cached.get("hash") == content_hash:
-        # Same file, already analyzed this session — show the stored result.
         pil_img = cached["pil_img"]
         label = cached["label"]
         confidence = cached["confidence"]
@@ -977,7 +907,7 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
             "</div>"
         )
     else:
-        # ---- Decode image ----
+
         try:
             pil_img = Image.open(uploaded).convert("RGB")
             frame_bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
@@ -985,7 +915,7 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
             _html("<div class='sf-alert-fall' style='border-color:rgba(245,158,11,0.5);background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(17,24,39,0.6));'><div class='head' style='color:#fcd34d;'>⚠ Unable to read image</div><div class='meta'>The file may be corrupt or use an unsupported format. Please try another image.</div></div>")
             return
 
-        # ---- Run the REAL pipeline ----
+
         try:
             label, confidence, annotated, prob_breakdown = predict_frame(
                 frame_bgr, yolo_model, clf, scaler, label_encoder
@@ -993,13 +923,10 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
         except Exception as e:
             _html(f"<div class='sf-alert-fall' style='border-color:rgba(245,158,11,0.5);background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(17,24,39,0.6));'><div class='head' style='color:#fcd34d;'>⚠ Analysis error</div><div class='meta'>Pose estimation or classification failed on this image. Try a clearer frame.</div></div>")
             return
-        del frame_bgr  # drop the decoded copy — the pipeline is done with it
+        del frame_bgr
 
-        # Log to session history ONCE (only on the analysis run itself).
         if label is not None:
             log_prediction(uploaded.name, label, confidence)
-
-        # Store the REAL result for reruns (dedupe) — never a fabricated one.
         st.session_state.last_image_analysis = {
             "hash": content_hash,
             "name": uploaded.name,
@@ -1010,7 +937,6 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
             "prob_breakdown": prob_breakdown,
         }
 
-    # ---- Workflow visual hierarchy: input → pose → classification ----
     _html("<div class='sf-card' style='margin-bottom:14px;'><div class='sf-card-title'>Input Image</div></div>")
     c1, c2 = st.columns(2)
     with c1:
@@ -1022,7 +948,6 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
 
     _html("<div style='text-align:center;color:var(--accent);font-size:20px;margin:6px 0 10px 0;'>↓</div>")
 
-    # ---- Prediction card ----
     left, right = st.columns([1, 1.2])
     with left:
         _html(prediction_hero(label, confidence))
@@ -1037,8 +962,7 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
         else:
             _html("<div class='sf-card'><div class='sf-card-title'>Class Probability Breakdown</div>" + empty_state("—", "No confident person detection — no classification performed.") + "</div>")
 
-    # ---- Fall / normal alert treatment ----
-    # (logged exactly once above — during the analysis run itself)
+
     st.markdown("")
     if label is None:
         _html("<div class='sf-pred warn' style='text-align:left;'>⚠ No confident person detection in this image — try a clearer frame with a visible subject.</div>")
@@ -1070,7 +994,7 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
 def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
     section_title("Video Monitoring", "LIVE CONSOLE")
 
-    # ---- Controls ----
+
     ctrl1, ctrl2, ctrl3 = st.columns(3)
     with ctrl1:
         sample_every_n = st.slider(
@@ -1079,8 +1003,7 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
             help="Higher = faster, coarser analysis. Lower = denser sampling.",
         )
     with ctrl2:
-        # Threshold displayed as a truthful percentage (e.g. 55%); internally
-        # kept as a 0-1 fraction so all downstream comparisons are unchanged.
+
         fall_gate_pct = st.slider(
             "Fall confidence threshold",
             30, 90, int(round(FALL_DEFAULT_GATE * 100)), 1,
@@ -1107,7 +1030,7 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         _html(empty_state("🎬", "Ready for monitoring.<br/>Upload an AVI, MP4, or MOV video to run the live monitoring console."))
         return
 
-    # ---- Analyze button so expensive inference is deliberate ----
+
     file_size_mb = uploaded.size / (1024 * 1024)
     file_info = f"File: {uploaded.name} &nbsp;·&nbsp; {file_size_mb:.1f} MB"
     st.markdown(f"**{file_info}**")
@@ -1115,18 +1038,10 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         _html("<div class='sf-note'>ℹ Larger videos may take longer to analyze. Frames are sampled and downscaled to 480px before inference for efficiency.</div>")
 
     if not st.button("▶ Analyze Video", type="primary", width="content"):
-        _html("<div class='sf-note'>Configure the sampling interval, threshold, and cooldown above, then click <b>Analyze Video</b> to begin.</div>")
-        return
 
-    # ---- Stream upload to a safe temp file ----
     tmp_path = stream_upload_to_tmp(uploaded, "safefall_upload")
     cap, total_frames, fps = open_video_robustly(tmp_path)
 
-    # FIX 5: The ONLY hard error is a failed VideoCapture open. OpenCV can
-    # decode perfectly valid videos while reporting CAP_PROP_FRAME_COUNT <= 0
-    # (the header is unreliable for many AVI variants). An unknown frame
-    # count must NOT reject the file — we process sequentially until the
-    # stream ends and keep the progress UI graceful with unknown totals.
     if cap is None:
         try:
             tmp_path.unlink(missing_ok=True)
@@ -1136,28 +1051,27 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         return
     total_known = total_frames > 0
     if not total_known:
-        # Header frame count is unreliable/absent — continue sequentially.
+
         status_note = st.empty()
         status_note.caption("ℹ Frame count not reported by this video's header — processing sequentially until the stream ends.")
 
-    # ---- Console layout: pose visualizer | live prediction ----
+
     _html("<div class='sf-card' style='margin-bottom:12px;'><div class='sf-card-title'>Live Monitoring Console</div></div>")
     console_left, console_right = st.columns([1.35, 1])
     with console_left:
-        preview_slot = st.empty()  # live annotated skeleton updates here
+        preview_slot = st.empty() 
         _html("<div class='sf-note' style='text-align:center;'>Pose visualizer — skeleton follows the subject frame-by-frame</div>")
     with console_right:
-        pred_slot = st.empty()      # live prediction card
-        progress_slot = st.empty()  # processing panel
-        status_slot = st.empty()    # status text
+        pred_slot = st.empty()      
+        progress_slot = st.empty()  
+        status_slot = st.empty()    
 
     fall_events: list[dict] = []
     last_fall_frame = None
     frame_idx = 0
     processed = 0
     hit_frame_cap = False
-    # FIX 2: confidence values from THIS video only — never mixed with
-    # predictions left in session history by previous uploads.
+
     video_confidences: list[float] = []
     duration_s = (total_frames / fps) if (total_known and fps) else 0.0
 
@@ -1172,17 +1086,17 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                     break
 
                 small_frame = downscale_frame(frame)
-                del frame  # drop the full-resolution copy immediately
+                del frame 
 
                 label, confidence, annotated, _ = predict_frame(
                     small_frame, yolo_model, clf, scaler, label_encoder
                 )
-                # Total-frame suffix ("" when the header didn't report a count)
+
                 frame_total_txt = f" / {total_frames}" if total_known else ""
 
                 if label is not None:
                     log_prediction(uploaded.name, label, confidence, round(frame_idx / fps, 2))
-                    video_confidences.append(float(confidence))  # FIX 2
+                    video_confidences.append(float(confidence)) 
                     preview_slot.image(
                         annotated,
                         caption=f"Frame {frame_idx} ({frame_idx / fps:.1f}s) — {CLASS_DISPLAY.get(label, label.title())} ({confidence*100:.0f}%)",
@@ -1200,7 +1114,7 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # Fall detection with confidence gate + cooldown grouping
+
                     if label == "fall" and confidence >= fall_confidence_gate:
                         within_cooldown = (
                             last_fall_frame is not None
@@ -1221,7 +1135,6 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                             })
                         last_fall_frame = frame_idx
                 else:
-                    # No person detected — keep console informative
                     progress_slot.markdown(f"""
                     <div class='sf-card'>
                         <div class='sf-card-title'>Analysis In Progress</div>
@@ -1244,7 +1157,6 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                 status_slot.progress(min(frame_idx / total_frames, 1.0))
                 status_slot.caption(f"Processed {processed} sampled frames / {frame_idx} total frames · Memory: {_mem_txt()}")
             else:
-                # Unknown total — no misleading percentage bar; show live counts.
                 status_slot.caption(f"Processed {processed} sampled frames · {frame_idx} total frames read · Memory: {_mem_txt()}")
     except MemoryError:
         status_slot.empty()
@@ -1257,14 +1169,10 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
             pass
         gc.collect()
 
-    # ---- Persist fall events to session for Analytics page ----
-    # FIX 1: MERGE (accumulate) instead of overwriting — events from
-    # previously analyzed videos are preserved, duplicates (same video
-    # analyzed twice) are de-duplicated by (frame, start_timestamp_s).
     if fall_events:
         merge_fall_events(fall_events)
     if not total_known:
-        # replace the pre-loop note now that the stream has ended
+
         try:
             status_note.caption(f"✓ Stream ended after {frame_idx} frames read ({processed} sampled & analyzed).")
         except Exception:
@@ -1274,7 +1182,6 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
     st.markdown("")
     section_title("Analysis Results", "SUMMARY")
 
-    # FIX 2: average confidence over THIS video's predictions only.
     avg_conf = float(np.mean(video_confidences)) if video_confidences else 0.0
     rc1, rc2, rc3, rc4 = st.columns(4)
     with rc1:
@@ -1288,7 +1195,6 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
     with rc4:
         kpi_card("Video Duration", f"{duration_s:.1f}s" if duration_s else "unknown")
 
-    # ---- Primary result ----
     st.markdown("")
     if fall_events:
         latest_fall = max(fall_events, key=lambda e: e["confidence"])
@@ -1302,11 +1208,10 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         </div>
         """)
 
-    # ---- Frame cap notice (contextual, not scary) ----
+
     if hit_frame_cap:
         _html(f"<div class='sf-note' style='margin-top:10px;'>ℹ Sampling stopped at {MAX_FRAMES_PER_VIDEO} frames (cloud stability cap). Increase the sampling interval to cover more of a long video within the same limit.</div>")
 
-    # ---- Fall event table + timeline ----
     if fall_events:
         st.markdown("")
         col_t, col_tbl = st.columns([1, 1.2])
@@ -1335,7 +1240,7 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         st.markdown("")
         _html("<div class='sf-card'><div class='sf-card-title'>Fall Event Log</div>" + empty_state("✓", "No potential fall events detected in this video.") + "</div>")
 
-    # ---- Post-analysis activity distribution ----
+
     st.markdown("")
     col_dist, col_hist = st.columns([1, 1.15])
     with col_dist:
@@ -1371,7 +1276,7 @@ def page_analytics():
     counts = activity_counts()
     total = sum(counts.values())
 
-    # ---- KPI strip ----
+
     cols = st.columns(6)
     metrics = [
         ("Total", total, ""),
@@ -1387,7 +1292,6 @@ def page_analytics():
 
     st.markdown("")
 
-    # ---- Activity distribution + confidence summary ----
     a1, a2 = st.columns([1.1, 1])
     with a1:
         _html("<div class='sf-card'><div class='sf-card-title'>Activity Distribution</div>")
@@ -1418,7 +1322,6 @@ def page_analytics():
 
     st.markdown("")
 
-    # ---- Fall event table ----
     section_title("Fall Events", "ALERT LOG")
     if st.session_state.fall_events:
         df_events = pd.DataFrame(st.session_state.fall_events)
@@ -1440,7 +1343,7 @@ def page_analytics():
     else:
         _html("<div class='sf-card'>" + empty_state("✓", "No potential fall events detected yet.") + "</div>")
 
-    # ---- History table (bounded) ----
+
     st.markdown("")
     section_title("Activity History", f"LAST {HISTORY_CAP} RECORDS")
     if st.session_state.history:
@@ -1470,7 +1373,6 @@ def page_model_information():
 
     info = load_model_info()
 
-    # ---- Architecture cards ----
     a1, a2, a3 = st.columns(3)
     with a1:
         _html("""
@@ -1522,7 +1424,7 @@ def page_model_information():
 
     st.markdown("")
 
-    # ---- Pipeline diagram ----
+
     _html("<div class='sf-card'><div class='sf-card-title'>Conceptual Pipeline</div>")
     _html(pipeline_flow([
         ("01", "Frame", "image / video"),
@@ -1536,7 +1438,6 @@ def page_model_information():
 
     st.markdown("")
 
-    # ---- Inference info ----
     i1, i2 = st.columns(2)
     with i1:
         _html("""
@@ -1574,7 +1475,6 @@ def page_model_information():
         tm = info.get("test_metrics", {})
         winner = info.get("winner", "—")
 
-        # ---- Real metric cards ----
         m1, m2, m3, m4 = st.columns(4)
         with m1:
             kpi_card("Accuracy", f"{tm.get('accuracy', 0)*100:.1f}%", "test set", variant="success")
@@ -1593,7 +1493,7 @@ def page_model_information():
         </div>
         """)
 
-        # ---- Real evaluation charts (only if files exist) ----
+
         cm_path = SCREENSHOTS_DIR / "confusion_matrix.png"
         cmp_path = SCREENSHOTS_DIR / "model_comparison.png"
         loss_path = SCREENSHOTS_DIR / "mlp_loss_curve.png"
@@ -1622,7 +1522,7 @@ def page_model_information():
             _html(empty_state("—", "Loss curve artifact unavailable."))
         _html("</div>")
 
-        # ---- Validation metrics detail (REAL, from model_info.json) ----
+
         with st.expander("Detailed validation metrics (per model)"):
             vm = info.get("val_metrics", {})
             if vm:
@@ -1640,7 +1540,6 @@ def page_model_information():
                 _html(empty_state("—", "No validation metrics available."))
 
 
-    # ---- Deployment challenges (rubric: discuss real-world challenges) ----
     st.markdown("")
     with st.expander("Real-world deployment challenges & future improvements"):
         _html("""
@@ -1664,7 +1563,6 @@ def page_model_information():
 def main():
     init_state()
 
-    # ---- Load models (cached) ----
     yolo_load_error = None
     try:
         yolo_model = load_yolo()
@@ -1678,16 +1576,15 @@ def main():
     clf_ok = clf is not None
     model_ok = clf_ok and yolo_ok
 
-    # ---- Inject design system ----
     _html(_design_css())
 
-    # ---- Brand header ----
+
     brand_header(online=model_ok)
 
-    # ---- Sidebar ----
+
     render_sidebar(model_ok, clf_ok, yolo_ok)
 
-    # ---- Hard stop if classifier artifacts are missing ----
+
     if clf is None:
         _html("""
         <div class='sf-alert-fall'>
@@ -1706,7 +1603,7 @@ def main():
         """)
         st.stop()
 
-    # ---- Main tabs ----
+
     tab_overview, tab_image, tab_video, tab_analytics, tab_model = st.tabs([
         "▣ Overview",
         "🖼️ Image Analysis",
