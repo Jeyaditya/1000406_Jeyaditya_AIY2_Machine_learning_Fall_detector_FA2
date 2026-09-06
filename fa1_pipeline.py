@@ -1,28 +1,3 @@
-"""
-SafeFall AI — FA-1 Local Pipeline
-==================================
-Run with:  python fa1_pipeline.py
-
-What this does, in order:
-  0. Sanity-check your dataset path and inspect one annotation file
-     (so you can eyeball the format before we trust it for 190 videos).
-  1. Walk all 6 Le2i environments, pair each video with its annotation.
-  2. Parse each annotation file for the fall start/end frame numbers.
-  3. Sample frames from every video, run YOLO-Pose on each, and label
-     each frame as fall / walking / sitting / standing / normal using:
-       - the annotation ground-truth for the fall frames
-       - the same geometric heuristics your own storyboard already
-         defines (aspect ratio, torso inclination angle) for the rest
-  4. Resize to 224x224, normalize, save into activity-named folders.
-  5. Balance classes via light augmentation (rotate/flip/brightness/zoom)
-     — same 4 transforms shown in your storyboard's augmentation slide.
-  6. Stratified 70/30 train/test split.
-  7. Save every EDA chart and screenshot you need for the storyboard
-     into ./fa1_outputs/screenshots/
-
-Everything writes under ./fa1_outputs/ next to this script.
-"""
-
 import os
 import sys
 import math
@@ -39,26 +14,17 @@ from PIL import Image, ImageEnhance
 from sklearn.model_selection import train_test_split
 
 # ============================================================
-# 0. CONFIG — EDIT THESE
+# 0. CONFIG
 # ============================================================
 
-# Root folder that directly contains Home_01, Home_02, Coffee_room_01, ...
-# (i.e. the folder you'd see if you unzipped the Kaggle download)
-DATASET_ROOT = Path(r"C:\path\to\le2i_dataset")   # <-- EDIT THIS
+DATASET_ROOT = Path(r"C:\path\to\le2i_dataset")
 
 OUTPUT_ROOT = Path("./fa1_outputs")
 
 IMG_SIZE = 224
-CONF_THRESHOLD = 0.5          # raised from 0.25 -> kills low-confidence "ghost" detections
-FRAMES_PER_VIDEO = 18         # bumped up from 10 so the fall arc isn't cut short
-FALL_RUNWAY_FRAMES = 40       # ~1.3-1.6s at typical Le2i frame rates — extra frames
-                               # sampled BEFORE fall_start and AFTER fall_end so the
-                               # walk/stand-up-to-it lead-in and the post-fall lying
-                               # phase both actually get captured, not just the
-                               # narrow annotated segment itself. This only widens
-                               # what gets SAMPLED — it does NOT widen what gets
-                               # LABELED "fall" (that's still FALL_BUFFER_FRAMES,
-                               # defined further down, kept intentionally tighter).
+CONF_THRESHOLD = 0.5          
+FRAMES_PER_VIDEO = 18      
+FALL_RUNWAY_FRAMES = 40       
 RANDOM_SEED = 42
 
 ENVIRONMENTS = [
@@ -68,16 +34,11 @@ ENVIRONMENTS = [
 ]
 
 CLASSES = ["fall", "walking", "sitting", "standing", "normal"]
-
-# Set to "cuda:0" yourself if you've confirmed CUDA works on the 940MX.
-# Defaulting to CPU: a nano pose model on a few hundred still frames
-# is a few minutes on CPU and avoids fighting an old 2GB Maxwell card.
 DEVICE = "cpu"
 
 random.seed(RANDOM_SEED)
 np.random.seed(RANDOM_SEED)
 
-# YOLO 17-keypoint (COCO) index map
 KP = {
     "nose": 0, "l_eye": 1, "r_eye": 2, "l_ear": 3, "r_ear": 4,
     "l_shoulder": 5, "r_shoulder": 6, "l_elbow": 7, "r_elbow": 8,
@@ -101,8 +62,7 @@ def find_video_annotation_pairs():
 
         videos = sorted(env_root.rglob("*.avi"))
         for video_path in videos:
-            # Le2i annotation files usually live in a sibling
-            # "Annotation_files" folder with the same base name + .txt
+
             candidates = list(env_root.rglob(f"{video_path.stem}.txt"))
             annotation_path = candidates[0] if candidates else None
             pairs.append({
@@ -151,8 +111,6 @@ def parse_annotation(annotation_path):
 
 # ============================================================
 # 2. POSE GEOMETRY HEURISTICS
-#    (same formulas as your storyboard: aspect ratio + torso angle,
-#     extended with knee-angle to separate walking/sitting/standing)
 # ============================================================
 
 def angle_at_joint(a, b, c):
@@ -193,7 +151,7 @@ def classify_non_fall_posture(xy, conf, conf_thresh=0.3):
 
     visible = [i for i in range(17) if conf[i] >= conf_thresh]
     if len(visible) < 4:
-        return "normal"  # too little visible to say anything confident
+        return "normal" 
 
     xs = xy[visible, 0]
     ys = xy[visible, 1]
@@ -201,7 +159,6 @@ def classify_non_fall_posture(xy, conf, conf_thresh=0.3):
     height = ys.max() - ys.min()
     ar = width / height if height > 0 else 1.0
 
-    # Knee angles for standing / walking / sitting distinction
     l_knee_angle = r_knee_angle = None
     if ok("l_hip") and ok("l_knee") and ok("l_ankle"):
         l_knee_angle = angle_at_joint(xy[KP["l_hip"]], xy[KP["l_knee"]], xy[KP["l_ankle"]])
@@ -228,11 +185,7 @@ def classify_non_fall_posture(xy, conf, conf_thresh=0.3):
 # 3. FRAME EXTRACTION + LABELING
 # ============================================================
 
-FALL_BUFFER_FRAMES = 15   # frames on either side of the annotated fall window
-                           # that still count as "fall" — covers imprecise
-                           # annotation boundaries WITHOUT resorting to a
-                           # global geometry rule (see classify_non_fall_posture
-                           # docstring for why that backfired)
+FALL_BUFFER_FRAMES = 15  
 
 
 def is_in_fall_window(frame_idx, fall_start, fall_end, buffer=FALL_BUFFER_FRAMES):
@@ -323,13 +276,11 @@ def extract_and_label(model, pairs, frames_per_video=FRAMES_PER_VIDEO):
             if result.keypoints is None or len(result.keypoints) == 0:
                 continue
 
-            # Keep only the highest-confidence person (kills the
-            # low-confidence "ghost" detections you saw in Colab)
+
             confs = result.boxes.conf.cpu().numpy() if result.boxes is not None else None
             if confs is not None and len(confs) > 1:
                 if not saved_ghost_example:
-                    # Save one multi-detection frame as evidence/explanation
-                    # for the storyboard (before we filter it down).
+
                     shots_dir = OUTPUT_ROOT / "screenshots"
                     shots_dir.mkdir(parents=True, exist_ok=True)
                     annotated = result.plot()[:, :, ::-1]
@@ -344,10 +295,6 @@ def extract_and_label(model, pairs, frames_per_video=FRAMES_PER_VIDEO):
                     if result.keypoints.conf is not None
                     else np.ones(xy.shape[0]))
 
-            # Fall label comes ONLY from the annotation ground truth (plus a
-            # small buffer for imprecise annotation boundaries) — never from
-            # a global geometry rule. See is_in_fall_window() / the
-            # classify_non_fall_posture() docstring for why.
             if is_in_fall_window(frame_idx, fall_start, fall_end):
                 label = "fall"
             else:
@@ -394,7 +341,6 @@ def preprocess_dataset(log_df):
             cv2.imwrite(str(out_path), resized)
             manifest.append({"path": str(out_path), "label": c})
 
-    # One before/after comparison image for the storyboard
     sample_class = next((c for c in CLASSES if (raw_dir / c).glob("*.png")), CLASSES[0])
     sample_files = list((raw_dir / sample_class).glob("*.png"))
     if sample_files:
