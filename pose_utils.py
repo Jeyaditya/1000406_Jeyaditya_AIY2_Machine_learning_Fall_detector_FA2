@@ -1,7 +1,7 @@
 import math
 import numpy as np
 
-# YOLO 17-keypoint (COCO) index map — same as fa1_pipeline.py
+
 KP = {
     "nose": 0, "l_eye": 1, "r_eye": 2, "l_ear": 3, "r_ear": 4,
     "l_shoulder": 5, "r_shoulder": 6, "l_elbow": 7, "r_elbow": 8,
@@ -9,7 +9,7 @@ KP = {
     "l_knee": 13, "r_knee": 14, "l_ankle": 15, "r_ankle": 16,
 }
 NUM_KEYPOINTS = 17
-CONF_THRESHOLD = 0.5   # same threshold used in fa1_pipeline.py — keep in sync
+CONF_THRESHOLD = 0.5  
 
 FEATURE_NAMES = (
     [f"kp{i}_x" for i in range(NUM_KEYPOINTS)]
@@ -83,12 +83,9 @@ def extract_feature_vector(xy, conf, conf_threshold=CONF_THRESHOLD):
     width = max(x_max - x_min, 1e-6)
     height = max(y_max - y_min, 1e-6)
 
-    # Scale-invariant keypoint coordinates (0-1 within the person's own
-    # bounding box) — same idea as your storyboard's "anonymized numerical
-    # coordinate" slide: position matters, absolute pixels don't.
+
     norm_x = (xy[:, 0] - x_min) / width
     norm_y = (xy[:, 1] - y_min) / height
-    # Zero out coords for keypoints below threshold so noise doesn't leak in
     mask = (conf >= conf_threshold).astype(np.float32)
     norm_x = norm_x * mask
     norm_y = norm_y * mask
