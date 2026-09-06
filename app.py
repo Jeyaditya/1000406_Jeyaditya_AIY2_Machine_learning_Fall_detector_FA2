@@ -1522,10 +1522,6 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         </div>
         """)
 
-
-    if hit_frame_cap:
-        _html(f"<div class='sf-note' style='margin-top:10px;'>ℹ Sampling stopped at {MAX_FRAMES_PER_VIDEO} frames (cloud stability cap). Increase the sampling interval to cover more of a long video within the same limit.</div>")
-
     if fall_events:
         st.markdown("")
         col_t, col_tbl = st.columns([1, 1.2])
