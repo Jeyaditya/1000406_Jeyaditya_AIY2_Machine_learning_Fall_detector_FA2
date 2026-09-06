@@ -1,12 +1,3 @@
-"""
-pose_utils.py — shared feature extraction for SafeFall AI (FA-2)
-
-Both train_classifier.py and app.py import from here so the feature
-vector a model is TRAINED on is guaranteed to match the feature vector
-it's FED at inference time in Streamlit. (A very common bug is these
-two silently drifting apart — keeping one shared module prevents that.)
-"""
-
 import math
 import numpy as np
 
