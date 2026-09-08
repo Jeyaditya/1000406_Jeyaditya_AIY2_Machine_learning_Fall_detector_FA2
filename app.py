@@ -45,7 +45,7 @@ SCREENSHOTS_DIR = Path("./fa2_outputs/screenshots")
 INFO_PATH = MODEL_DIR / "model_info.json"
 
 MAX_FRAME_DIMENSION = 480
-MAX_FRAMES_PER_VIDEO = 40
+MAX_FRAMES_PER_VIDEO = 200
 GC_EVERY_N_FRAMES = 5
 HISTORY_CAP = 200
 FALL_DEFAULT_GATE = 0.55
@@ -1120,7 +1120,7 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                 break
 
             if sample_index_set is not None:
-                should_process = (frame_idx in sample_index_set)
+                should_process = (frame_idx % sample_every_n == 0)
             else:
                 should_process = (
                     frame_idx % sample_every_n == 0
