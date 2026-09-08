@@ -1,7 +1,6 @@
 import math
 import numpy as np
 
-
 KP = {
     "nose": 0, "l_eye": 1, "r_eye": 2, "l_ear": 3, "r_ear": 4,
     "l_shoulder": 5, "r_shoulder": 6, "l_elbow": 7, "r_elbow": 8,
@@ -9,7 +8,9 @@ KP = {
     "l_knee": 13, "r_knee": 14, "l_ankle": 15, "r_ankle": 16,
 }
 NUM_KEYPOINTS = 17
-CONF_THRESHOLD = 0.5  
+
+# Lowered from 0.5 to 0.20 so floor poses and horizontal falls are not killed
+CONF_THRESHOLD = 0.20  
 
 FEATURE_NAMES = (
     [f"kp{i}_x" for i in range(NUM_KEYPOINTS)]
@@ -31,7 +32,7 @@ def angle_at_joint(a, b, c):
 
 
 def torso_angle(neck, pelvis):
-    """0 deg = upright, 90 deg = horizontal. Same formula as fa1_pipeline.py."""
+    """0 deg = upright, 90 deg = horizontal."""
     dx = neck[0] - pelvis[0]
     dy = neck[1] - pelvis[1]
     denom = math.sqrt(dx * dx + dy * dy)
@@ -41,11 +42,8 @@ def torso_angle(neck, pelvis):
 
 
 def get_best_person(result, conf_threshold=CONF_THRESHOLD):
-    """Given one ultralytics pose Result, return (xy, conf) for the
-    highest-confidence detected person, or (None, None) if nobody was
-    detected above threshold. This is the same 'kill the ghost' filter
-    used during FA-1 extraction — keep it identical here so training
-    and inference see the same kind of input."""
+    """Return (xy, conf) for the highest-confidence detected person,
+    with a lower threshold to prevent dropping people lying on the ground."""
     if result.keypoints is None or len(result.keypoints) == 0:
         return None, None
 
@@ -65,10 +63,7 @@ def get_best_person(result, conf_threshold=CONF_THRESHOLD):
 
 
 def extract_feature_vector(xy, conf, conf_threshold=CONF_THRESHOLD):
-    """xy: (17,2) keypoint coords in pixel space. conf: (17,) confidences.
-    Returns a fixed-length, scale-invariant feature vector, or None if
-    too few keypoints are visible to say anything useful."""
-
+    """Returns a fixed-length, scale-invariant feature vector."""
     def ok(name):
         return conf[KP[name]] >= conf_threshold
 
@@ -83,7 +78,6 @@ def extract_feature_vector(xy, conf, conf_threshold=CONF_THRESHOLD):
     width = max(x_max - x_min, 1e-6)
     height = max(y_max - y_min, 1e-6)
 
-
     norm_x = (xy[:, 0] - x_min) / width
     norm_y = (xy[:, 1] - y_min) / height
     mask = (conf >= conf_threshold).astype(np.float32)
@@ -92,12 +86,17 @@ def extract_feature_vector(xy, conf, conf_threshold=CONF_THRESHOLD):
 
     ar = width / height
 
-    if ok("l_shoulder") and ok("r_shoulder") and ok("l_hip") and ok("r_hip"):
-        neck = (xy[KP["l_shoulder"]] + xy[KP["r_shoulder"]]) / 2
-        pelvis = (xy[KP["l_hip"]] + xy[KP["r_hip"]]) / 2
+    # Robust torso calculation: fallback to any visible shoulder/hip pair if occluded
+    shoulders = [xy[KP[s]] for s in ("l_shoulder", "r_shoulder") if ok(s)]
+    hips = [xy[KP[h]] for h in ("l_hip", "r_hip") if ok(h)]
+
+    if shoulders and hips:
+        neck = np.mean(shoulders, axis=0)
+        pelvis = np.mean(hips, axis=0)
         theta = torso_angle(neck, pelvis)
     else:
-        theta = 0.0
+        # If torso landmarks are completely hidden, fall back to aspect ratio clue
+        theta = 90.0 if ar > 1.2 else 0.0
 
     l_knee_angle = r_knee_angle = None
     if ok("l_hip") and ok("l_knee") and ok("l_ankle"):
@@ -118,11 +117,14 @@ def extract_feature_vector(xy, conf, conf_threshold=CONF_THRESHOLD):
 
 
 def image_to_feature(model, image_bgr, conf_threshold=CONF_THRESHOLD, imgsz=320, device="cpu"):
-    """Convenience wrapper: raw BGR image -> feature vector (or None).
-    Also returns the raw ultralytics result so callers can .plot() it
-    for an annotated screenshot without running inference twice."""
-    results = model.predict(source=image_bgr, imgsz=imgsz, conf=conf_threshold,
-                             device=device, verbose=False)
+    """Runs YOLO pose and returns the feature vector and plotted result."""
+    results = model.predict(
+        source=image_bgr,
+        imgsz=imgsz,
+        conf=conf_threshold,
+        device=device,
+        verbose=False
+    )
     result = results[0]
     xy, conf = get_best_person(result, conf_threshold)
     if xy is None:
