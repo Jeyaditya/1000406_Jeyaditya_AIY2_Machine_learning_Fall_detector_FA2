@@ -3,9 +3,8 @@
 torch
 torchvision
 
-opencv-python-headless>=4.8.0
+opencv-python-headless==4.10.0.84
 ultralytics
---override opencv-python=opencv-python-headless
 
 numpy
 pandas
@@ -15,3 +14,7 @@ matplotlib
 pillow
 streamlit
 psutil
+PyYAML
+requests
+scipy
+tqdm
