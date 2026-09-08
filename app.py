@@ -36,7 +36,10 @@ try:
 except ImportError:
     _HAS_PSUTIL = False
 
-
+import os
+import sys
+os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
 # ============================================================
 # CONFIG
 # ============================================================
