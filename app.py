@@ -532,8 +532,7 @@ def predict_frame(frame_bgr, yolo_model, clf, scaler, label_encoder):
     pred_idx = int(np.argmax(probs))
     confidence = float(probs[pred_idx])
 
-    # Guard against low-probability ties
-    if confidence < 0.35:
+    if confidence < 0.30:
         label = "normal"
     else:
         label = str(label_encoder.inverse_transform([pred_idx])[0])
@@ -561,10 +560,10 @@ def avg_confidence() -> float | None:
     return float(np.mean([h["confidence"] for h in st.session_state.history]))
 
 
-def activity_distribution_chart():
+def activity_distribution_chart(data_counts=None, title_label="Predictions"):
     if not _HAS_MPL:
         return None
-    counts = activity_counts()
+    counts = data_counts if data_counts is not None else activity_counts()
     labels = [CLASS_DISPLAY[c] for c in CLASS_DISPLAY_ORDER]
     values = [counts[c] for c in CLASS_DISPLAY_ORDER]
     colors = [CLASSES_COLORS[c] for c in CLASS_DISPLAY_ORDER]
@@ -576,7 +575,7 @@ def activity_distribution_chart():
     for spine in ax.spines.values():
         spine.set_color("#1f2937")
     ax.tick_params(colors="#9ca3af", labelsize=11)
-    ax.set_xlabel("Predictions", color="#9ca3af", fontsize=11)
+    ax.set_xlabel(title_label, color="#9ca3af", fontsize=11)
     for b, v in zip(bars, values):
         if v > 0:
             ax.text(b.get_width() + max(values) * 0.01 + 0.3, b.get_y() + b.get_height() / 2,
@@ -927,7 +926,7 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
 
 
 # ============================================================
-# PAGE: VIDEO MONITORING
+# PAGE: VIDEO MONITORING (SYNCHRONIZED METRICS)
 # ============================================================
 
 def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
@@ -1012,6 +1011,8 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         progress_slot = st.empty()
         status_slot = st.empty()
 
+    # Synchronized per-video metrics
+    this_video_history: list[dict] = []
     fall_events: list[dict] = []
     last_fall_frame = None
     frame_idx = 0
@@ -1024,7 +1025,7 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
             if not ok_read:
                 break
 
-            # Stride-based sampling ensures we process the full video without getting capped
+            # Stride-based sampling (processes full video without artificial caps)
             if frame_idx % sample_every_n == 0:
                 small_frame = downscale_frame(frame)
                 del frame
@@ -1040,24 +1041,20 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                 frame_total_txt = f" / {total_frames}" if total_known else ""
                 timestamp_s = frame_idx / fps if fps and fps > 0 else 0.0
 
-                # ALWAYS update the preview display so the video doesn't look frozen
                 if label is not None:
                     display_frame = annotated
                     cap_text = f"Frame {frame_idx} ({timestamp_s:.1f}s) — {CLASS_DISPLAY.get(label, label.title())} ({confidence * 100:.0f}%)"
-                else:
-                    display_frame = small_frame[:, :, ::-1]
-                    cap_text = f"Frame {frame_idx} ({timestamp_s:.1f}s) — Scanning / No person detected"
 
-                preview_slot.image(display_frame, caption=cap_text, width="stretch")
-
-                if label is not None:
+                    pred_entry = {
+                        "time": datetime.now().strftime("%H:%M:%S"),
+                        "source": uploaded.name,
+                        "label": label,
+                        "confidence": float(confidence),
+                        "timestamp_s": round(timestamp_s, 2),
+                    }
+                    this_video_history.append(pred_entry)
                     log_prediction(uploaded.name, label, confidence, round(timestamp_s, 2))
                     video_confidences.append(float(confidence))
-
-                    pred_slot.markdown(
-                        prediction_hero(label, confidence),
-                        unsafe_allow_html=True,
-                    )
 
                     if label == "fall" and confidence >= fall_confidence_gate:
                         within_cooldown = (
@@ -1083,19 +1080,24 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                             })
 
                         last_fall_frame = frame_idx
-
                 else:
-                    card_markup = (
-                        "<div class='sf-card'>"
-                        "<div class='sf-card-title'>Analysis In Progress</div>"
-                        f"<div style='font-size:14px;color:var(--text);'>Processing frame <b>{frame_idx}</b>{frame_total_txt}</div>"
-                        "<div class='sf-note' style='margin-top:6px;'>Activity: <b style='color:#9ca3af;'>No person detected</b></div>"
-                        f"<div class='sf-note'>Frames analyzed: {processed + 1}</div>"
-                        "<div class='sf-note'>Coverage: Full video</div>"
-                        "<div class='sf-note'>Current status: Scanning…</div>"
-                        "</div>"
+                    display_frame = small_frame[:, :, ::-1]
+                    cap_text = f"Frame {frame_idx} ({timestamp_s:.1f}s) — Scanning / No person detected"
+
+                preview_slot.image(display_frame, caption=cap_text, width="stretch")
+
+                # Live Hero display: keep displaying the confirmed fall incident once detected
+                if fall_events:
+                    top_ev = max(fall_events, key=lambda e: e["confidence"])
+                    pred_slot.markdown(
+                        prediction_hero("fall", top_ev["confidence"]),
+                        unsafe_allow_html=True,
                     )
-                    progress_slot.markdown(card_markup, unsafe_allow_html=True)
+                elif label is not None:
+                    pred_slot.markdown(
+                        prediction_hero(label, confidence),
+                        unsafe_allow_html=True,
+                    )
 
                 del annotated
                 processed += 1
@@ -1140,20 +1142,35 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
 
     status_slot.caption(f"✓ Video complete · {processed} frames analyzed across {frame_idx} total frames.")
 
-    # ================= RESULTS SUMMARY =================
+    # ================= RESULTS SUMMARY (EXACT SYNCHRONIZATION) =================
     st.markdown("")
     section_title("Analysis Results", "SUMMARY")
 
+    # Lock Hero Card to the highest confidence incident of this video
+    if fall_events:
+        peak_fall = max(fall_events, key=lambda e: e["confidence"])
+        pred_slot.markdown(
+            prediction_hero("fall", peak_fall["confidence"]),
+            unsafe_allow_html=True,
+        )
+
+    # Activity counts isolated strictly to this video
+    vid_counts = {c: 0 for c in CLASS_DISPLAY_ORDER}
+    for h in this_video_history:
+        vid_counts[h["label"]] = vid_counts.get(h["label"], 0) + 1
+
+    total_valid_frames = len(this_video_history)
     avg_conf = float(np.mean(video_confidences)) if video_confidences else 0.0
+
     rc1, rc2, rc3, rc4 = st.columns(4)
     with rc1:
-        kpi_card("Frames Analyzed", processed)
+        kpi_card("Frames Analyzed", total_valid_frames, f"{processed} sampled frames processed")
     with rc2:
-        kpi_card("Fall Events", len(fall_events), "grouped incidents (cooldown-merged)" if fall_events else "",
+        kpi_card("Fall Events", len(fall_events), "grouped incidents (cooldown-merged)" if fall_events else "none detected",
                  variant="danger" if fall_events else "")
     with rc3:
         kpi_card("Avg Confidence", f"{avg_conf*100:.1f}%" if video_confidences else "—",
-                 "this video only" if video_confidences else "no predictions in this video")
+                 "this video only" if video_confidences else "no predictions")
     with rc4:
         actual_duration = frame_idx / fps if fps and fps > 0 else duration_s
         kpi_card("Video Duration", f"{actual_duration:.1f}s" if actual_duration else "unknown")
@@ -1202,21 +1219,22 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
     st.markdown("")
     col_dist, col_hist = st.columns([1, 1.15])
     with col_dist:
-        _html("<div class='sf-card'><div class='sf-card-title'>Activity Distribution (this session)</div>")
-        if st.session_state.history:
-            fig = activity_distribution_chart()
+        _html("<div class='sf-card'><div class='sf-card-title'>Activity Distribution (This Video)</div>")
+        if total_valid_frames > 0:
+            fig = activity_distribution_chart(data_counts=vid_counts, title_label="Predictions (This Video)")
             if fig is not None:
                 st.pyplot(fig, width="stretch")
                 plt.close(fig)
         else:
-            _html(empty_state("📊", "No activity data yet."))
+            _html(empty_state("📊", "No activity data for this video."))
         _html("</div>")
+
     with col_hist:
-        _html("<div class='sf-card'><div class='sf-card-title'>Recent Predictions</div>")
-        if st.session_state.history:
-            _html(timeline_html(st.session_state.history))
+        _html("<div class='sf-card'><div class='sf-card-title'>Video Frame Predictions</div>")
+        if this_video_history:
+            _html(timeline_html(this_video_history))
         else:
-            _html(empty_state("—", "No predictions logged."))
+            _html(empty_state("—", "No predictions logged for this video."))
         _html("</div>")
 
 
@@ -1226,7 +1244,7 @@ def _mem_txt() -> str:
 
 
 # ============================================================
-# PAGE: ANALYTICS
+# PAGE: ANALYTICS (SESSION SUMMARY)
 # ============================================================
 
 def page_analytics():
@@ -1251,9 +1269,9 @@ def page_analytics():
 
     a1, a2 = st.columns([1.1, 1])
     with a1:
-        _html("<div class='sf-card'><div class='sf-card-title'>Activity Distribution</div>")
+        _html("<div class='sf-card'><div class='sf-card-title'>Activity Distribution (All Videos)</div>")
         if total:
-            fig = activity_distribution_chart()
+            fig = activity_distribution_chart(data_counts=counts, title_label="Total Predictions (Session)")
             if fig is not None:
                 st.pyplot(fig, width="stretch")
                 plt.close(fig)
