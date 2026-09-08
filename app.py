@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import tempfile
+import textwrap
 from datetime import datetime
 from pathlib import Path
 
@@ -15,7 +16,6 @@ import streamlit as st
 from PIL import Image
 
 from pose_utils import image_to_feature
-
 
 try:
     import joblib
@@ -44,22 +44,20 @@ MODEL_DIR = Path("./fa2_outputs/models")
 SCREENSHOTS_DIR = Path("./fa2_outputs/screenshots")
 INFO_PATH = MODEL_DIR / "model_info.json"
 
-MAX_FRAME_DIMENSION = 480      
-MAX_FRAMES_PER_VIDEO = 40      
-GC_EVERY_N_FRAMES = 5          
-HISTORY_CAP = 200             
-FALL_DEFAULT_GATE = 0.55      
-FALL_DEFAULT_COOLDOWN = 3      
+MAX_FRAME_DIMENSION = 480
+MAX_FRAMES_PER_VIDEO = 40
+GC_EVERY_N_FRAMES = 5
+HISTORY_CAP = 200
+FALL_DEFAULT_GATE = 0.55
+FALL_DEFAULT_COOLDOWN = 3
 
-
-ACCENT = "#22d3ee"          
+ACCENT = "#22d3ee"
 ACCENT_SOFT = "#0e7490"
-DANGER = "#ef4444"         
-WARNING = "#f59e0b"         
-SUCCESS = "#22c55e"         
-SURFACE = "#111827"     
+DANGER = "#ef4444"
+WARNING = "#f59e0b"
+SUCCESS = "#22c55e"
+SURFACE = "#111827"
 BORDER = "#1f2937"
-
 
 CLASSES_COLORS = {
     "fall": "#ef4444",
@@ -68,7 +66,6 @@ CLASSES_COLORS = {
     "standing": "#60a5fa",
     "normal": "#22c55e",
 }
-
 
 CLASS_DISPLAY_ORDER = ["fall", "walking", "sitting", "standing", "normal"]
 CLASS_DISPLAY = {
@@ -94,7 +91,7 @@ st.set_page_config(
 # ============================================================
 
 def _design_css() -> str:
-    return """
+    return textwrap.dedent("""
     <style>
     /* ---- Global tokens ---- */
     :root {
@@ -299,16 +296,16 @@ def _design_css() -> str:
     .sf-divider { height:1px; background: var(--border); margin: 14px 0; border:none; }
     .sf-tag { font-size:11px; padding:3px 9px; border-radius:999px; background:rgba(34,211,238,0.10); border:1px solid rgba(34,211,238,0.30); color:#a5f3fc; }
     </style>
-    """
+    """)
 
 
 # ============================================================
 # UI HELPER FUNCTIONS
 # ============================================================
 
-def _html(html: str) -> None:
-    """Safely render an HTML fragment in Streamlit."""
-    st.markdown(html, unsafe_allow_html=True)
+def _html(html_str: str) -> None:
+    """Safely render a dedented HTML fragment in Streamlit."""
+    st.markdown(textwrap.dedent(html_str).strip(), unsafe_allow_html=True)
 
 
 def brand_header(online: bool = True) -> None:
@@ -355,15 +352,15 @@ def status_pill(label: str, ok: bool = True, kind: str = "") -> str:
 
 
 def prediction_hero(label: str | None, confidence: float | None) -> str:
-    """Return HTML for the big prediction card used in image/video analysis."""
+    """Return clean HTML for the big prediction card used in image/video analysis."""
     if label is None:
-        return """
-        <div class="sf-pred warn">
-            <div class="sf-pred-label">Prediction</div>
-            <div class="sf-pred-activity" style="font-size:22px;color:#fcd34d;">No person detected</div>
-            <div class="sf-pred-conf">Pose engine could not confidently detect a subject in this frame.</div>
-        </div>
-        """
+        return (
+            "<div class='sf-pred warn'>"
+            "<div class='sf-pred-label'>Prediction</div>"
+            "<div class='sf-pred-activity' style='font-size:22px;color:#fcd34d;'>No person detected</div>"
+            "<div class='sf-pred-conf'>Pose engine could not confidently detect a subject in this frame.</div>"
+            "</div>"
+        )
     disp = CLASS_DISPLAY.get(label, label.title())
     if label == "fall" and (confidence or 0) >= FALL_DEFAULT_GATE:
         variant = "fall"
@@ -373,32 +370,30 @@ def prediction_hero(label: str | None, confidence: float | None) -> str:
         variant = "normal"
     color = CLASSES_COLORS.get(label, ACCENT)
     conf_txt = f"{(confidence or 0)*100:.1f}% confidence" if confidence is not None else "—"
-    return f"""
-    <div class="sf-pred {variant}">
-        <div class="sf-pred-label">Predicted Activity</div>
-        <div class="sf-pred-activity" style="color:{color};">{disp}</div>
-        <div class="sf-pred-conf">{conf_txt}</div>
-    </div>
-    """
+    return (
+        f"<div class='sf-pred {variant}'>"
+        f"<div class='sf-pred-label'>Predicted Activity</div>"
+        f"<div class='sf-pred-activity' style='color:{color};'>{disp}</div>"
+        f"<div class='sf-pred-conf'>{conf_txt}</div>"
+        f"</div>"
+    )
 
 
 def confidence_meter(confidence: float, color: str = ACCENT) -> str:
     pct = max(0.0, min(1.0, float(confidence))) * 100
-    return f"""
-    <div class="sf-meter"><span style="width:{pct:.1f}%;background:{color};"></span></div>
-    """
+    return f"<div class='sf-meter'><span style='width:{pct:.1f}%;background:{color};'></span></div>"
 
 
 def fall_alert_banner(timestamp_s: float | None, confidence: float, frame: int | None = None) -> str:
     ts = f"{timestamp_s:.1f}s" if timestamp_s is not None else "—"
     fr = f"Frame {frame}" if frame is not None else ""
-    return f"""
-    <div class="sf-alert-fall">
-        <div class="head">⚠ FALL DETECTED</div>
-        <div class="meta">Potential fall event detected at {ts} &nbsp;·&nbsp; Confidence: {confidence*100:.1f}% &nbsp;·&nbsp; {fr}</div>
-        <div class="meta" style="margin-top:8px;">Emergency alert generated — caregiver notification flagged for review.</div>
-    </div>
-    """
+    return (
+        f"<div class='sf-alert-fall'>"
+        f"<div class='head'>⚠ FALL DETECTED</div>"
+        f"<div class='meta'>Potential fall event detected at {ts} &nbsp;·&nbsp; Confidence: {confidence*100:.1f}% &nbsp;·&nbsp; {fr}</div>"
+        f"<div class='meta' style='margin-top:8px;'>Emergency alert generated — caregiver notification flagged for review.</div>"
+        f"</div>"
+    )
 
 
 def pipeline_flow(steps: list[tuple[str, str, str]]) -> str:
@@ -449,7 +444,7 @@ def timeline_html(events: list[dict]) -> str:
 
 
 # ============================================================
-# CACHED LOADERS  (heavyweight, never reload on Streamlit reruns)
+# CACHED LOADERS (heavyweight, never reload on Streamlit reruns)
 # ============================================================
 
 @st.cache_resource
@@ -493,9 +488,9 @@ def load_model_info() -> dict | None:
 def init_state() -> None:
     ss = st.session_state
     if "history" not in ss:
-        ss.history = [] 
+        ss.history = []
     if "fall_events" not in ss:
-        ss.fall_events = [] 
+        ss.fall_events = []
 
 
 def log_prediction(source: str, label: str, confidence: float, timestamp_s: float | None = None) -> None:
@@ -512,14 +507,7 @@ def log_prediction(source: str, label: str, confidence: float, timestamp_s: floa
 
 
 def merge_fall_events(new_events: list[dict]) -> list[dict]:
-    """Merge freshly-detected fall events into the session event log.
-
-    Events are grouped incidents (fall frames merged by cooldown), NOT raw
-    fall-classified frames. New events are appended; a duplicate is one that
-    repeats the same (frame, start_timestamp_s) pair — which happens when
-    the same video is analyzed twice. This preserves events from previously
-    analyzed videos instead of overwriting them.
-    """
+    """Merge freshly-detected fall events into the session event log."""
     seen = {
         (e.get("source"), e.get("frame"), e.get("start_timestamp_s"))
         for e in st.session_state.fall_events
@@ -534,7 +522,7 @@ def merge_fall_events(new_events: list[dict]) -> list[dict]:
 
 
 def format_ts(seconds: float) -> str:
-    """Format a timestamp in seconds as M:SS.s / MM:SS.s (no 00:083.2 bugs)."""
+    """Format a timestamp in seconds as M:SS.s / MM:SS.s."""
     try:
         seconds = float(seconds)
     except (TypeError, ValueError):
@@ -679,7 +667,6 @@ def stream_upload_to_tmp(uploaded, base_name: str) -> Path:
     tmp_path = Path(tmp_name)
     try:
         with os.fdopen(fd, "wb") as f:
-
             for chunk in iter(lambda: uploaded.read(1024 * 1024), b""):
                 f.write(chunk)
     except Exception:
@@ -734,7 +721,7 @@ def render_sidebar(model_ok: bool, clf_ok: bool, yolo_ok: bool) -> None:
         c1, c2 = st.columns(2)
         c1.metric("Total predictions", total)
         c2.metric("Fall incidents", len(st.session_state.fall_events))
-        st.caption(f"Inference device: **CPU** · No GPU required.")
+        st.caption("Inference device: **CPU** · No GPU required.")
 
         mem = current_memory_mb()
         if mem is not None:
@@ -743,7 +730,7 @@ def render_sidebar(model_ok: bool, clf_ok: bool, yolo_ok: bool) -> None:
         if st.button("↺ Reset session analytics", width="stretch"):
             st.session_state.history = []
             st.session_state.fall_events = []
-            st.session_state.pop("last_image_analysis", None)  # FIX 6: allow re-analysis
+            st.session_state.pop("last_image_analysis", None)
             st.rerun()
 
 
@@ -779,7 +766,6 @@ def page_overview():
                  "across all predictions" if conf is not None else "no predictions yet")
 
     st.markdown("")
-
 
     if total:
         latest = st.session_state.history[-1]
@@ -886,7 +872,7 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
         hasher = hashlib.sha256()
         for chunk in iter(lambda: uploaded.read(1024 * 1024), b""):
             hasher.update(chunk)
-        uploaded.seek(0)  
+        uploaded.seek(0)
         content_hash = hasher.hexdigest()
     except Exception:
         content_hash = None
@@ -900,13 +886,12 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
         prob_breakdown = cached["prob_breakdown"]
         _html(
             "<div class='sf-note' style='margin-bottom:12px;'>"
-            "\u2139 This image was already analyzed in this session — showing its stored "
+            "ℹ This image was already analyzed in this session — showing its stored "
             "result. No duplicate history entry is created on reruns. Use "
-            "<b>\u21ba Reset session analytics</b> in the sidebar to re-analyze."
+            "<b>↺ Reset session analytics</b> in the sidebar to re-analyze."
             "</div>"
         )
     else:
-
         try:
             pil_img = Image.open(uploaded).convert("RGB")
             frame_bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
@@ -914,13 +899,12 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
             _html("<div class='sf-alert-fall' style='border-color:rgba(245,158,11,0.5);background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(17,24,39,0.6));'><div class='head' style='color:#fcd34d;'>⚠ Unable to read image</div><div class='meta'>The file may be corrupt or use an unsupported format. Please try another image.</div></div>")
             return
 
-
         try:
             label, confidence, annotated, prob_breakdown = predict_frame(
                 frame_bgr, yolo_model, clf, scaler, label_encoder
             )
-        except Exception as e:
-            _html(f"<div class='sf-alert-fall' style='border-color:rgba(245,158,11,0.5);background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(17,24,39,0.6));'><div class='head' style='color:#fcd34d;'>⚠ Analysis error</div><div class='meta'>Pose estimation or classification failed on this image. Try a clearer frame.</div></div>")
+        except Exception:
+            _html("<div class='sf-alert-fall' style='border-color:rgba(245,158,11,0.5);background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(17,24,39,0.6));'><div class='head' style='color:#fcd34d;'>⚠ Analysis error</div><div class='meta'>Pose estimation or classification failed on this image. Try a clearer frame.</div></div>")
             return
         del frame_bgr
 
@@ -951,8 +935,8 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
     with left:
         _html(prediction_hero(label, confidence))
         if label is not None:
-            _html("<div style='margin-top:12px;'>" + confidence_meter(confidence, CLASSES_COLORS.get(label, ACCENT)) + "</div>")
-            _html(f"<div class='sf-note' style='text-align:center;margin-top:4px;'>Confidence meter — real classifier output</div>")
+            _html(f"<div style='margin-top:12px;'>{confidence_meter(confidence, CLASSES_COLORS.get(label, ACCENT))}</div>")
+            _html("<div class='sf-note' style='text-align:center;margin-top:4px;'>Confidence meter — real classifier output</div>")
     with right:
         if label is not None:
             _html("<div class='sf-card'><div class='sf-card-title'>Class Probability Breakdown</div>")
@@ -960,7 +944,6 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
             _html("<div class='sf-note' style='margin-top:8px;'>Real per-class probabilities from the Random Forest classifier.</div></div>")
         else:
             _html("<div class='sf-card'><div class='sf-card-title'>Class Probability Breakdown</div>" + empty_state("—", "No confident person detection — no classification performed.") + "</div>")
-
 
     st.markdown("")
     if label is None:
@@ -999,10 +982,7 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         sample_every_n = st.slider(
             "Sampling interval (every Nth frame)",
             5, 60, 15,
-            help=(
-                "Controls analysis density. The selected frames are "
-                "distributed across the entire video."
-            ),
+            help="Controls analysis density. The selected frames are distributed across the entire video.",
         )
 
     with ctrl2:
@@ -1030,8 +1010,7 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
 
     _html(
         "<div class='sf-note' style='margin-top:2px;'>"
-        "Supported formats: AVI &nbsp;•&nbsp; MP4 &nbsp;•&nbsp; MOV "
-        "&nbsp;•&nbsp; M4V &nbsp;•&nbsp; MKV"
+        "Supported formats: AVI &nbsp;•&nbsp; MP4 &nbsp;•&nbsp; MOV &nbsp;•&nbsp; M4V &nbsp;•&nbsp; MKV"
         "</div>"
     )
 
@@ -1039,40 +1018,26 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         _html(
             empty_state(
                 "🎬",
-                "Ready for monitoring.<br/>"
-                "Upload an AVI, MP4, or MOV video to run "
-                "the live monitoring console."
+                "Ready for monitoring.<br/>Upload an AVI, MP4, or MOV video to run the live monitoring console."
             )
         )
         return
 
     file_size_mb = uploaded.size / (1024 * 1024)
-    file_info = (
-        f"File: {uploaded.name} &nbsp;·&nbsp; {file_size_mb:.1f} MB"
-    )
+    file_info = f"File: {uploaded.name} &nbsp;·&nbsp; {file_size_mb:.1f} MB"
     st.markdown(f"**{file_info}**")
 
     if file_size_mb > 60:
         _html(
             "<div class='sf-note'>"
-            "ℹ Larger videos may take longer to analyze. "
-            "Frames are sampled and downscaled to 480px before "
-            "inference for efficiency."
+            "ℹ Larger videos may take longer to analyze. Frames are sampled and downscaled to 480px before inference for efficiency."
             "</div>"
         )
 
-    if not st.button(
-        "▶ Analyze Video",
-        type="primary",
-        width="content",
-    ):
+    if not st.button("▶ Analyze Video", type="primary", width="content"):
         return
 
-    tmp_path = stream_upload_to_tmp(
-        uploaded,
-        "safefall_upload"
-    )
-
+    tmp_path = stream_upload_to_tmp(uploaded, "safefall_upload")
     cap, total_frames, fps = open_video_robustly(tmp_path)
 
     if cap is None:
@@ -1082,30 +1047,18 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
             pass
 
         _html(
-            "<div class='sf-alert-fall' "
-            "style='border-color:rgba(245,158,11,0.5);"
-            "background:linear-gradient(135deg,"
-            "rgba(245,158,11,0.16),"
-            "rgba(17,24,39,0.6));'>"
-            "<div class='head' style='color:#fcd34d;'>"
-            "⚠ Unable to read this video"
+            "<div class='sf-alert-fall' style='border-color:rgba(245,158,11,0.5);background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(17,24,39,0.6));'>"
+            "<div class='head' style='color:#fcd34d;'>⚠ Unable to read this video</div>"
+            "<div class='meta'>The file may use an unsupported codec, be corrupt, or contain no readable frames. Try another file or format.</div>"
             "</div>"
-            "<div class='meta'>"
-            "The file may use an unsupported codec, be corrupt, "
-            "or contain no readable frames. Try another file or format."
-            "</div></div>"
         )
         return
 
     total_known = total_frames > 0
-
-
-    sample_indices = None
     sample_index_set = None
     target_frames = 0
 
     if total_known:
-
         target_frames = max(
             1,
             min(
@@ -1113,26 +1066,18 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                 int(np.ceil(total_frames / sample_every_n)),
             ),
         )
-
         sample_indices = np.linspace(
             0,
             total_frames - 1,
             target_frames,
             dtype=int,
         )
-
         sample_indices = np.unique(sample_indices)
-
-        sample_index_set = set(
-            sample_indices.tolist()
-        )
-
+        sample_index_set = set(sample_indices.tolist())
     else:
         status_note = st.empty()
-
         status_note.caption(
-            "ℹ Frame count not reported by this video's header — "
-            "processing sequentially until the stream ends."
+            "ℹ Frame count not reported by this video's header — processing sequentially until the stream ends."
         )
 
     duration_s = (
@@ -1143,20 +1088,17 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
 
     _html(
         "<div class='sf-card' style='margin-bottom:12px;'>"
-        "<div class='sf-card-title'>"
-        "Live Monitoring Console"
-        "</div></div>"
+        "<div class='sf-card-title'>Live Monitoring Console</div>"
+        "</div>"
     )
 
     console_left, console_right = st.columns([1.35, 1])
 
     with console_left:
         preview_slot = st.empty()
-
         _html(
             "<div class='sf-note' style='text-align:center;'>"
-            "Pose visualizer — skeleton follows the subject "
-            "frame-by-frame"
+            "Pose visualizer — skeleton follows the subject frame-by-frame"
             "</div>"
         )
 
@@ -1167,28 +1109,18 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
 
     fall_events: list[dict] = []
     last_fall_frame = None
-
     frame_idx = 0
     processed = 0
-
     video_confidences: list[float] = []
 
     try:
-
         while True:
-
             ok_read, frame = cap.read()
-
             if not ok_read:
                 break
 
-
             if sample_index_set is not None:
-
-                should_process = (
-                    frame_idx in sample_index_set
-                )
-
+                should_process = (frame_idx in sample_index_set)
             else:
                 should_process = (
                     frame_idx % sample_every_n == 0
@@ -1196,7 +1128,6 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                 )
 
             if should_process:
-
                 small_frame = downscale_frame(frame)
                 del frame
 
@@ -1208,14 +1139,9 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                     label_encoder,
                 )
 
-                frame_total_txt = (
-                    f" / {total_frames}"
-                    if total_known
-                    else ""
-                )
+                frame_total_txt = f" / {total_frames}" if total_known else ""
 
                 if label is not None:
-
                     timestamp_s = (
                         frame_idx / fps
                         if fps and fps > 0
@@ -1229,223 +1155,117 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                         round(timestamp_s, 2),
                     )
 
-                    video_confidences.append(
-                        float(confidence)
-                    )
+                    video_confidences.append(float(confidence))
 
                     preview_slot.image(
                         annotated,
                         caption=(
-                            f"Frame {frame_idx}"
-                            f" ({timestamp_s:.1f}s) — "
-                            f"{CLASS_DISPLAY.get(label, label.title())}"
-                            f" ({confidence * 100:.0f}%)"
+                            f"Frame {frame_idx} ({timestamp_s:.1f}s) — "
+                            f"{CLASS_DISPLAY.get(label, label.title())} "
+                            f"({confidence * 100:.0f}%)"
                         ),
                         width="stretch",
                     )
 
                     pred_slot.markdown(
-                        prediction_hero(
-                            label,
-                            confidence,
-                        ),
+                        prediction_hero(label, confidence),
                         unsafe_allow_html=True,
                     )
 
-                
-                    if (
-                        label == "fall"
-                        and confidence >= fall_confidence_gate
-                    ):
-
+                    if label == "fall" and confidence >= fall_confidence_gate:
                         within_cooldown = (
                             last_fall_frame is not None
                             and fps
                             and fps > 0
-                            and (
-                                (frame_idx - last_fall_frame)
-                                / fps
-                            ) <= event_cooldown_s
+                            and ((frame_idx - last_fall_frame) / fps) <= event_cooldown_s
                         )
 
                         if within_cooldown:
-
-                            fall_events[-1][
-                                "end_timestamp_s"
-                            ] = round(
-                                timestamp_s,
-                                2,
-                            )
-
-                            fall_events[-1][
-                                "confidence"
-                            ] = max(
+                            fall_events[-1]["end_timestamp_s"] = round(timestamp_s, 2)
+                            fall_events[-1]["confidence"] = max(
                                 fall_events[-1]["confidence"],
                                 confidence,
                             )
-
                         else:
-
-                            fall_events.append(
-                                {
-                                    "source": uploaded.name,
-                                    "frame": frame_idx,
-                                    "start_timestamp_s": round(
-                                        timestamp_s,
-                                        2,
-                                    ),
-                                    "end_timestamp_s": round(
-                                        timestamp_s,
-                                        2,
-                                    ),
-                                    "confidence": confidence,
-                                }
-                            )
+                            fall_events.append({
+                                "source": uploaded.name,
+                                "frame": frame_idx,
+                                "start_timestamp_s": round(timestamp_s, 2),
+                                "end_timestamp_s": round(timestamp_s, 2),
+                                "confidence": confidence,
+                            })
 
                         last_fall_frame = frame_idx
 
                 else:
-
-                    progress_slot.markdown(
-                        f"""
-                        <div class='sf-card'>
-                            <div class='sf-card-title'>
-                                Analysis In Progress
-                            </div>
-
-                            <div style='font-size:14px;color:var(--text);'>
-                                Processing frame
-                                <b>{frame_idx}</b>{frame_total_txt}
-                            </div>
-
-                            <div class='sf-note'
-                                 style='margin-top:6px;'>
-                                Activity:
-                                <b style='color:#9ca3af;'>
-                                    No person detected
-                                </b>
-                            </div>
-
-                            <div class='sf-note'>
-                                Frames analyzed:
-                                {processed + 1}
-                            </div>
-
-                            <div class='sf-note'>
-                                Coverage:
-                                Full video
-                            </div>
-
-                            <div class='sf-note'>
-                                Current status:
-                                Scanning…
-                            </div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
+                    card_markup = (
+                        "<div class='sf-card'>"
+                        "<div class='sf-card-title'>Analysis In Progress</div>"
+                        f"<div style='font-size:14px;color:var(--text);'>Processing frame <b>{frame_idx}</b>{frame_total_txt}</div>"
+                        "<div class='sf-note' style='margin-top:6px;'>Activity: <b style='color:#9ca3af;'>No person detected</b></div>"
+                        f"<div class='sf-note'>Frames analyzed: {processed + 1}</div>"
+                        "<div class='sf-note'>Coverage: Full video</div>"
+                        "<div class='sf-note'>Current status: Scanning…</div>"
+                        "</div>"
                     )
+                    progress_slot.markdown(card_markup, unsafe_allow_html=True)
 
                 del annotated
-
                 processed += 1
 
                 if processed % GC_EVERY_N_FRAMES == 0:
                     gc.collect()
 
             else:
-
                 del frame
 
             frame_idx += 1
 
             if total_known:
-
-                status_slot.progress(
-                    min(
-                        frame_idx / total_frames,
-                        1.0,
-                    )
-                )
-
+                status_slot.progress(min(frame_idx / total_frames, 1.0))
                 status_slot.caption(
-                    f"Processed {processed} sampled frames / "
-                    f"{frame_idx} total frames · "
-                    f"Memory: {_mem_txt()}"
+                    f"Processed {processed} sampled frames / {frame_idx} total frames · Memory: {_mem_txt()}"
                 )
-
             else:
-
                 status_slot.caption(
-                    f"Processed {processed} sampled frames · "
-                    f"{frame_idx} total frames read · "
-                    f"Memory: {_mem_txt()}"
+                    f"Processed {processed} sampled frames · {frame_idx} total frames read · Memory: {_mem_txt()}"
                 )
 
     except MemoryError:
-
         status_slot.empty()
-
         _html(
-            "<div class='sf-alert-fall' "
-            "style='border-color:rgba(245,158,11,0.5);"
-            "background:linear-gradient(135deg,"
-            "rgba(245,158,11,0.16),"
-            "rgba(17,24,39,0.6));'>"
-
-            "<div class='head' style='color:#fcd34d;'>"
-            "⚠ Memory pressure"
+            "<div class='sf-alert-fall' style='border-color:rgba(245,158,11,0.5);background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(17,24,39,0.6));'>"
+            "<div class='head' style='color:#fcd34d;'>⚠ Memory pressure</div>"
+            "<div class='meta'>Ran low on memory partway through. Try a shorter clip, a larger sampling interval, or run locally.</div>"
             "</div>"
-
-            "<div class='meta'>"
-            "Ran low on memory partway through. "
-            "Try a shorter clip, a larger sampling interval, "
-            "or run locally."
-            "</div></div>"
         )
-
     finally:
-
         cap.release()
-
         try:
             tmp_path.unlink(missing_ok=True)
         except Exception:
             pass
-
         gc.collect()
-
+        progress_slot.empty()
 
     if fall_events:
         merge_fall_events(fall_events)
 
     if not total_known:
-
         try:
             status_note.caption(
-                f"✓ Stream ended after {frame_idx} frames read "
-                f"({processed} sampled & analyzed)."
+                f"✓ Stream ended after {frame_idx} frames read ({processed} sampled & analyzed)."
             )
         except Exception:
             pass
 
-
     if total_known:
-
         coverage_note = (
-            f"✓ Full video scanned · "
-            f"{processed} frames analyzed across "
-            f"{frame_idx} total frames."
+            f"✓ Full video scanned · {processed} frames analyzed across {frame_idx} total frames."
         )
-
         if target_frames:
-            coverage_note += (
-                f" Sampling budget: {target_frames}."
-            )
-
-        status_slot.caption(
-            coverage_note
-        )
-
+            coverage_note += f" Sampling budget: {target_frames}."
+        status_slot.caption(coverage_note)
 
     # ================= RESULTS SUMMARY =================
     st.markdown("")
@@ -1505,7 +1325,6 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         st.markdown("")
         _html("<div class='sf-card'><div class='sf-card-title'>Fall Event Log</div>" + empty_state("✓", "No potential fall events detected in this video.") + "</div>")
 
-
     st.markdown("")
     col_dist, col_hist = st.columns([1, 1.15])
     with col_dist:
@@ -1540,7 +1359,6 @@ def page_analytics():
     section_title("Analytics", "SESSION INSIGHTS")
     counts = activity_counts()
     total = sum(counts.values())
-
 
     cols = st.columns(6)
     metrics = [
@@ -1607,7 +1425,6 @@ def page_analytics():
         _html("<div class='sf-note'>Fall events are grouped incidents (repeated fall frames merged by the cooldown window), accumulated across the session's videos. Prototype monitoring system; no emergency service contacted automatically.</div>")
     else:
         _html("<div class='sf-card'>" + empty_state("✓", "No potential fall events detected yet.") + "</div>")
-
 
     st.markdown("")
     section_title("Activity History", f"LAST {HISTORY_CAP} RECORDS")
@@ -1689,7 +1506,6 @@ def page_model_information():
 
     st.markdown("")
 
-
     _html("<div class='sf-card'><div class='sf-card-title'>Conceptual Pipeline</div>")
     _html(pipeline_flow([
         ("01", "Frame", "image / video"),
@@ -1758,7 +1574,6 @@ def page_model_information():
         </div>
         """)
 
-
         cm_path = SCREENSHOTS_DIR / "confusion_matrix.png"
         cmp_path = SCREENSHOTS_DIR / "model_comparison.png"
         loss_path = SCREENSHOTS_DIR / "mlp_loss_curve.png"
@@ -1787,7 +1602,6 @@ def page_model_information():
             _html(empty_state("—", "Loss curve artifact unavailable."))
         _html("</div>")
 
-
         with st.expander("Detailed validation metrics (per model)"):
             vm = info.get("val_metrics", {})
             if vm:
@@ -1803,7 +1617,6 @@ def page_model_information():
                 st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
             else:
                 _html(empty_state("—", "No validation metrics available."))
-
 
     st.markdown("")
     with st.expander("Real-world deployment challenges & future improvements"):
@@ -1842,13 +1655,8 @@ def main():
     model_ok = clf_ok and yolo_ok
 
     _html(_design_css())
-
-
     brand_header(online=model_ok)
-
-
     render_sidebar(model_ok, clf_ok, yolo_ok)
-
 
     if clf is None:
         _html("""
@@ -1867,7 +1675,6 @@ def main():
         </div>
         """)
         st.stop()
-
 
     tab_overview, tab_image, tab_video, tab_analytics, tab_model = st.tabs([
         "▣ Overview",
