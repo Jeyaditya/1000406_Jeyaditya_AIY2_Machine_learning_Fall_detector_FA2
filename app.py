@@ -45,7 +45,7 @@ SCREENSHOTS_DIR = Path("./fa2_outputs/screenshots")
 INFO_PATH = MODEL_DIR / "model_info.json"
 
 MAX_FRAME_DIMENSION = 480
-MAX_FRAMES_PER_VIDEO = 200
+MAX_FRAMES_PER_VIDEO = 300
 GC_EVERY_N_FRAMES = 5
 HISTORY_CAP = 200
 FALL_DEFAULT_GATE = 0.55
@@ -87,13 +87,12 @@ st.set_page_config(
 
 
 # ============================================================
-# DESIGN SYSTEM — custom CSS (dark clinical technology theme)
+# DESIGN SYSTEM
 # ============================================================
 
 def _design_css() -> str:
     return textwrap.dedent("""
     <style>
-    /* ---- Global tokens ---- */
     :root {
         --bg: #0b1020;
         --surface: #111827;
@@ -109,7 +108,6 @@ def _design_css() -> str:
         --radius: 14px;
     }
 
-    /* ---- App background ---- */
     .stApp, .stApp > header {
         background-color: var(--bg);
         color: var(--text);
@@ -126,7 +124,6 @@ def _design_css() -> str:
     }
     .stApp > * { position: relative; z-index: 1; }
 
-    /* ---- Brand header bar ---- */
     .sf-header {
         display: flex; align-items: center; justify-content: space-between;
         gap: 16px; padding: 18px 22px; margin-bottom: 14px;
@@ -164,7 +161,6 @@ def _design_css() -> str:
         100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
     }
 
-    /* ---- Cards ---- */
     .sf-card {
         background: var(--surface); border: 1px solid var(--border);
         border-radius: var(--radius); padding: 18px;
@@ -176,7 +172,6 @@ def _design_css() -> str:
         color: var(--text-dim); font-weight: 700; margin: 0 0 10px 0;
     }
 
-    /* ---- KPI metric cards ---- */
     .sf-kpi {
         background: var(--surface); border: 1px solid var(--border);
         border-radius: var(--radius); padding: 16px 18px; position: relative; overflow: hidden;
@@ -192,7 +187,6 @@ def _design_css() -> str:
     .sf-kpi-value { font-size: 30px; font-weight: 800; margin-top: 6px; color: var(--text); line-height: 1.1; }
     .sf-kpi-sub { font-size: 11.5px; color: var(--text-dim); margin-top: 4px; }
 
-    /* ---- Status pill (system component readiness) ---- */
     .sf-pill {
         display: inline-flex; align-items: center; gap: 8px;
         padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
@@ -204,7 +198,6 @@ def _design_css() -> str:
     .sf-pill.warn .dot { background: var(--warning); }
     .sf-pill.danger .dot { background: var(--danger); }
 
-    /* ---- Prediction hero card ---- */
     .sf-pred {
         border-radius: var(--radius); padding: 20px; text-align: center;
         border: 1px solid var(--border);
@@ -216,7 +209,6 @@ def _design_css() -> str:
     .sf-pred.fall   { background: linear-gradient(135deg, rgba(239,68,68,0.14), rgba(17,24,39,0.6)); border-color: rgba(239,68,68,0.45); }
     .sf-pred.warn   { background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(17,24,39,0.6)); border-color: rgba(245,158,11,0.35); }
 
-    /* ---- Fall alert banner ---- */
     .sf-alert-fall {
         background: linear-gradient(135deg, rgba(239,68,68,0.18), rgba(239,68,68,0.06));
         border: 1.5px solid rgba(239,68,68,0.55); border-radius: var(--radius);
@@ -228,11 +220,9 @@ def _design_css() -> str:
     .sf-alert-fall .head { font-size: 20px; font-weight: 800; display:flex; align-items:center; gap:10px; color:#fff; }
     .sf-alert-fall .meta { font-size: 13px; margin-top: 6px; color:#fca5a5; }
 
-    /* ---- Confidence meter ---- */
     .sf-meter { height: 10px; border-radius: 999px; background: #1f2937; overflow: hidden; }
     .sf-meter > span { display:block; height:100%; border-radius:999px; transition: width .4s ease; }
 
-    /* ---- Pipeline flow diagram ---- */
     .sf-pipe { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; }
     .sf-step {
         flex:1 1 0; min-width: 120px; padding: 12px 12px; border-radius: 12px;
@@ -243,14 +233,12 @@ def _design_css() -> str:
     .sf-step .d { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
     .sf-arrow { display:flex; align-items:center; color: var(--accent); font-size: 18px; }
 
-    /* ---- Empty state ---- */
     .sf-empty {
         text-align:center; padding: 36px 18px; color: var(--text-dim);
         background: var(--surface-2); border: 1px dashed var(--border); border-radius: var(--radius);
     }
     .sf-empty .big { font-size: 30px; opacity:.5; margin-bottom: 8px; }
 
-    /* ---- Timeline ---- */
     .sf-tl { position: relative; padding-left: 18px; }
     .sf-tl::before { content:""; position:absolute; left:6px; top:4px; bottom:4px; width:2px; background: var(--border); }
     .sf-tl-row { position: relative; padding: 6px 0 6px 14px; }
@@ -262,7 +250,6 @@ def _design_css() -> str:
     .sf-tl-row .t { font-size: 12px; color: var(--text-dim); }
     .sf-tl-row .a { font-size: 14px; font-weight: 700; }
 
-    /* ---- Streamlit overrides ---- */
     .stTabs [data-baseweb="tab-list"] { gap: 6px; }
     .stTabs [data-baseweb="tab"] {
         background: transparent; border-radius: 10px 10px 0 0;
@@ -286,12 +273,10 @@ def _design_css() -> str:
     .stFileUploader > div { background: var(--surface); border:1px solid var(--border); border-radius: 12px; }
     .stAlert { border-radius: 12px; }
 
-    /* hide the default red top-right menu if it overlaps */
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
     .st-emotion-cache-1dp5ir5 { display: none; }
 
-    /* small helper text */
     .sf-note { font-size: 12px; color: var(--text-dim); }
     .sf-divider { height:1px; background: var(--border); margin: 14px 0; border:none; }
     .sf-tag { font-size:11px; padding:3px 9px; border-radius:999px; background:rgba(34,211,238,0.10); border:1px solid rgba(34,211,238,0.30); color:#a5f3fc; }
@@ -300,16 +285,14 @@ def _design_css() -> str:
 
 
 # ============================================================
-# UI HELPER FUNCTIONS
+# UI HELPERS
 # ============================================================
 
 def _html(html_str: str) -> None:
-    """Safely render a dedented HTML fragment in Streamlit."""
     st.markdown(textwrap.dedent(html_str).strip(), unsafe_allow_html=True)
 
 
 def brand_header(online: bool = True) -> None:
-    """Top brand bar with live system-status indicator."""
     status_cls = "" if online else "offline"
     status_text = "SYSTEM ONLINE" if online else "SYSTEM DEGRADED"
     _html(f"""
@@ -329,7 +312,6 @@ def brand_header(online: bool = True) -> None:
 
 
 def kpi_card(label: str, value, sub: str = "", variant: str = "") -> None:
-    """A polished KPI metric card. variant: '' | 'danger' | 'success' | 'warn'."""
     cls = variant if variant in ("danger", "success", "warn") else ""
     sub_html = f'<div class="sf-kpi-sub">{sub}</div>' if sub else ""
     _html(f"""
@@ -342,17 +324,12 @@ def kpi_card(label: str, value, sub: str = "", variant: str = "") -> None:
 
 
 def status_pill(label: str, ok: bool = True, kind: str = "") -> str:
-    """Return HTML for a small readiness pill."""
-    if kind:
-        cls = kind
-    else:
-        cls = "" if ok else "danger"
+    cls = kind if kind else ("" if ok else "danger")
     dot = "<span class='dot'></span>"
     return f"<span class='sf-pill {cls}'>{dot} {label}</span>"
 
 
 def prediction_hero(label: str | None, confidence: float | None) -> str:
-    """Return clean HTML for the big prediction card used in image/video analysis."""
     if label is None:
         return (
             "<div class='sf-pred warn'>"
@@ -397,7 +374,6 @@ def fall_alert_banner(timestamp_s: float | None, confidence: float, frame: int |
 
 
 def pipeline_flow(steps: list[tuple[str, str, str]]) -> str:
-    """Render the conceptual ML pipeline as a horizontal flow diagram."""
     parts = []
     for i, (n, t, d) in enumerate(steps):
         parts.append(f"""
@@ -426,7 +402,6 @@ def section_title(title: str, tag: str = "") -> None:
 
 
 def timeline_html(events: list[dict]) -> str:
-    """events: list of {time, label, confidence}."""
     if not events:
         return empty_state("—", "No activity recorded yet.")
     rows = []
@@ -444,12 +419,11 @@ def timeline_html(events: list[dict]) -> str:
 
 
 # ============================================================
-# CACHED LOADERS (heavyweight, never reload on Streamlit reruns)
+# CACHED LOADERS
 # ============================================================
 
 @st.cache_resource
 def load_yolo():
-    """Load YOLO11n-Pose once and keep it cached for the session."""
     from ultralytics import YOLO
     model = YOLO("yolo11n-pose.pt")
     model.to(DEVICE)
@@ -458,8 +432,6 @@ def load_yolo():
 
 @st.cache_resource
 def load_classifier():
-    """Load the trained RF classifier + scaler + label encoder.
-    Returns (clf, scaler, label_encoder) or (None, None, None) if missing."""
     if joblib is None:
         return None, None, None
     clf_path = MODEL_DIR / "classifier.joblib"
@@ -472,7 +444,6 @@ def load_classifier():
 
 @st.cache_data(show_spinner=False)
 def load_model_info() -> dict | None:
-    """Load the REAL evaluation metadata from model_info.json (cached)."""
     if not INFO_PATH.exists():
         return None
     try:
@@ -494,7 +465,6 @@ def init_state() -> None:
 
 
 def log_prediction(source: str, label: str, confidence: float, timestamp_s: float | None = None) -> None:
-    """Append a prediction to history and enforce the session-memory cap."""
     st.session_state.history.append({
         "time": datetime.now().strftime("%H:%M:%S"),
         "source": source,
@@ -507,7 +477,6 @@ def log_prediction(source: str, label: str, confidence: float, timestamp_s: floa
 
 
 def merge_fall_events(new_events: list[dict]) -> list[dict]:
-    """Merge freshly-detected fall events into the session event log."""
     seen = {
         (e.get("source"), e.get("frame"), e.get("start_timestamp_s"))
         for e in st.session_state.fall_events
@@ -522,7 +491,6 @@ def merge_fall_events(new_events: list[dict]) -> list[dict]:
 
 
 def format_ts(seconds: float) -> str:
-    """Format a timestamp in seconds as M:SS.s / MM:SS.s."""
     try:
         seconds = float(seconds)
     except (TypeError, ValueError):
@@ -534,7 +502,7 @@ def format_ts(seconds: float) -> str:
 
 
 # ============================================================
-# MEMORY / PERFORMANCE HELPERS
+# MEMORY & PREDICTION HELPERS
 # ============================================================
 
 def current_memory_mb() -> float | None:
@@ -544,7 +512,6 @@ def current_memory_mb() -> float | None:
 
 
 def downscale_frame(frame_bgr, max_dim: int = MAX_FRAME_DIMENSION):
-    """Shrink the frame before YOLO/feature extraction to bound memory & CPU."""
     h, w = frame_bgr.shape[:2]
     longest = max(h, w)
     if longest <= max_dim:
@@ -553,13 +520,9 @@ def downscale_frame(frame_bgr, max_dim: int = MAX_FRAME_DIMENSION):
     return cv2.resize(frame_bgr, (int(w * scale), int(h * scale)))
 
 
-# ============================================================
-# CORE PREDICTION (preserved ML pipeline)
-# ============================================================
-
 def predict_frame(frame_bgr, yolo_model, clf, scaler, label_encoder):
     feature, result = image_to_feature(yolo_model, frame_bgr, device=DEVICE)
-    annotated = result.plot()[:, :, ::-1]  # BGR -> RGB for display
+    annotated = result.plot()[:, :, ::-1]
 
     if feature is None:
         return None, None, annotated, None
@@ -567,16 +530,17 @@ def predict_frame(frame_bgr, yolo_model, clf, scaler, label_encoder):
     feature_s = scaler.transform(feature.reshape(1, -1))
     probs = clf.predict_proba(feature_s)[0]
     pred_idx = int(np.argmax(probs))
-    label = label_encoder.inverse_transform([pred_idx])[0]
-    label = str(label)
     confidence = float(probs[pred_idx])
+
+    # Guard against low-probability ties
+    if confidence < 0.35:
+        label = "normal"
+    else:
+        label = str(label_encoder.inverse_transform([pred_idx])[0])
+
     prob_breakdown = {str(k): float(v) for k, v in zip(label_encoder.classes_, probs.tolist())}
     return label, confidence, annotated, prob_breakdown
 
-
-# ============================================================
-# SESSION ANALYTICS HELPERS
-# ============================================================
 
 def history_df() -> pd.DataFrame:
     if not st.session_state.history:
@@ -598,7 +562,6 @@ def avg_confidence() -> float | None:
 
 
 def activity_distribution_chart():
-    """Horizontal bar chart of REAL activity counts. Returns matplotlib fig or None."""
     if not _HAS_MPL:
         return None
     counts = activity_counts()
@@ -643,10 +606,6 @@ def confidence_breakdown_bars(prob_breakdown: dict):
         </div>""")
     _html("".join(rows))
 
-
-# ============================================================
-# SAFE VIDEO HANDLING (AVI / MP4 / MOV robustness)
-# ============================================================
 
 def stream_upload_to_tmp(uploaded, base_name: str) -> Path:
     try:
@@ -703,7 +662,7 @@ def render_sidebar(model_ok: bool, clf_ok: bool, yolo_ok: bool) -> None:
         </div>
         <hr class='sf-divider'/>
         """)
-        st.caption("Navigation is via the tabs in the main panel — Overview, Image Analysis, Video Monitoring, Analytics, and Model Information.")
+        st.caption("Navigation is via tabs in the main panel.")
 
         st.markdown("**SYSTEM STATUS**")
         _html(f"""
@@ -886,9 +845,7 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
         prob_breakdown = cached["prob_breakdown"]
         _html(
             "<div class='sf-note' style='margin-bottom:12px;'>"
-            "ℹ This image was already analyzed in this session — showing its stored "
-            "result. No duplicate history entry is created on reruns. Use "
-            "<b>↺ Reset session analytics</b> in the sidebar to re-analyze."
+            "ℹ This image was already analyzed in this session — showing stored result."
             "</div>"
         )
     else:
@@ -981,8 +938,8 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
     with ctrl1:
         sample_every_n = st.slider(
             "Sampling interval (every Nth frame)",
-            5, 60, 15,
-            help="Controls analysis density. The selected frames are distributed across the entire video.",
+            2, 30, 6,
+            help="Controls analysis density. Lower = smoother continuous monitoring of falls.",
         )
 
     with ctrl2:
@@ -1015,24 +972,11 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
     )
 
     if uploaded is None:
-        _html(
-            empty_state(
-                "🎬",
-                "Ready for monitoring.<br/>Upload an AVI, MP4, or MOV video to run the live monitoring console."
-            )
-        )
+        _html(empty_state("🎬", "Ready for monitoring.<br/>Upload an AVI, MP4, or MOV video to run the live monitoring console."))
         return
 
     file_size_mb = uploaded.size / (1024 * 1024)
-    file_info = f"File: {uploaded.name} &nbsp;·&nbsp; {file_size_mb:.1f} MB"
-    st.markdown(f"**{file_info}**")
-
-    if file_size_mb > 60:
-        _html(
-            "<div class='sf-note'>"
-            "ℹ Larger videos may take longer to analyze. Frames are sampled and downscaled to 480px before inference for efficiency."
-            "</div>"
-        )
+    st.markdown(f"**File: {uploaded.name} &nbsp;·&nbsp; {file_size_mb:.1f} MB**")
 
     if not st.button("▶ Analyze Video", type="primary", width="content"):
         return
@@ -1045,62 +989,23 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
             tmp_path.unlink(missing_ok=True)
         except Exception:
             pass
-
         _html(
             "<div class='sf-alert-fall' style='border-color:rgba(245,158,11,0.5);background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(17,24,39,0.6));'>"
             "<div class='head' style='color:#fcd34d;'>⚠ Unable to read this video</div>"
-            "<div class='meta'>The file may use an unsupported codec, be corrupt, or contain no readable frames. Try another file or format.</div>"
+            "<div class='meta'>The file may use an unsupported codec, be corrupt, or contain no readable frames.</div>"
             "</div>"
         )
         return
 
     total_known = total_frames > 0
-    sample_index_set = None
-    target_frames = 0
+    duration_s = total_frames / fps if total_known and fps and fps > 0 else 0.0
 
-    if total_known:
-        target_frames = max(
-            1,
-            min(
-                MAX_FRAMES_PER_VIDEO,
-                int(np.ceil(total_frames / sample_every_n)),
-            ),
-        )
-        sample_indices = np.linspace(
-            0,
-            total_frames - 1,
-            target_frames,
-            dtype=int,
-        )
-        sample_indices = np.unique(sample_indices)
-        sample_index_set = set(sample_indices.tolist())
-    else:
-        status_note = st.empty()
-        status_note.caption(
-            "ℹ Frame count not reported by this video's header — processing sequentially until the stream ends."
-        )
-
-    duration_s = (
-        total_frames / fps
-        if total_known and fps and fps > 0
-        else 0.0
-    )
-
-    _html(
-        "<div class='sf-card' style='margin-bottom:12px;'>"
-        "<div class='sf-card-title'>Live Monitoring Console</div>"
-        "</div>"
-    )
+    _html("<div class='sf-card' style='margin-bottom:12px;'><div class='sf-card-title'>Live Monitoring Console</div></div>")
 
     console_left, console_right = st.columns([1.35, 1])
-
     with console_left:
         preview_slot = st.empty()
-        _html(
-            "<div class='sf-note' style='text-align:center;'>"
-            "Pose visualizer — skeleton follows the subject frame-by-frame"
-            "</div>"
-        )
+        _html("<div class='sf-note' style='text-align:center;'>Pose visualizer — skeleton follows the subject frame-by-frame</div>")
 
     with console_right:
         pred_slot = st.empty()
@@ -1119,15 +1024,8 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
             if not ok_read:
                 break
 
-            if sample_index_set is not None:
-                should_process = (frame_idx % sample_every_n == 0)
-            else:
-                should_process = (
-                    frame_idx % sample_every_n == 0
-                    and processed < MAX_FRAMES_PER_VIDEO
-                )
-
-            if should_process:
+            # Stride-based sampling ensures we process the full video without getting capped
+            if frame_idx % sample_every_n == 0:
                 small_frame = downscale_frame(frame)
                 del frame
 
@@ -1140,32 +1038,21 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                 )
 
                 frame_total_txt = f" / {total_frames}" if total_known else ""
+                timestamp_s = frame_idx / fps if fps and fps > 0 else 0.0
+
+                # ALWAYS update the preview display so the video doesn't look frozen
+                if label is not None:
+                    display_frame = annotated
+                    cap_text = f"Frame {frame_idx} ({timestamp_s:.1f}s) — {CLASS_DISPLAY.get(label, label.title())} ({confidence * 100:.0f}%)"
+                else:
+                    display_frame = small_frame[:, :, ::-1]
+                    cap_text = f"Frame {frame_idx} ({timestamp_s:.1f}s) — Scanning / No person detected"
+
+                preview_slot.image(display_frame, caption=cap_text, width="stretch")
 
                 if label is not None:
-                    timestamp_s = (
-                        frame_idx / fps
-                        if fps and fps > 0
-                        else 0.0
-                    )
-
-                    log_prediction(
-                        uploaded.name,
-                        label,
-                        confidence,
-                        round(timestamp_s, 2),
-                    )
-
+                    log_prediction(uploaded.name, label, confidence, round(timestamp_s, 2))
                     video_confidences.append(float(confidence))
-
-                    preview_slot.image(
-                        annotated,
-                        caption=(
-                            f"Frame {frame_idx} ({timestamp_s:.1f}s) — "
-                            f"{CLASS_DISPLAY.get(label, label.title())} "
-                            f"({confidence * 100:.0f}%)"
-                        ),
-                        width="stretch",
-                    )
 
                     pred_slot.markdown(
                         prediction_hero(label, confidence),
@@ -1236,7 +1123,7 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         _html(
             "<div class='sf-alert-fall' style='border-color:rgba(245,158,11,0.5);background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(17,24,39,0.6));'>"
             "<div class='head' style='color:#fcd34d;'>⚠ Memory pressure</div>"
-            "<div class='meta'>Ran low on memory partway through. Try a shorter clip, a larger sampling interval, or run locally.</div>"
+            "<div class='meta'>Ran low on memory partway through. Try a shorter clip or run locally.</div>"
             "</div>"
         )
     finally:
@@ -1251,21 +1138,7 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
     if fall_events:
         merge_fall_events(fall_events)
 
-    if not total_known:
-        try:
-            status_note.caption(
-                f"✓ Stream ended after {frame_idx} frames read ({processed} sampled & analyzed)."
-            )
-        except Exception:
-            pass
-
-    if total_known:
-        coverage_note = (
-            f"✓ Full video scanned · {processed} frames analyzed across {frame_idx} total frames."
-        )
-        if target_frames:
-            coverage_note += f" Sampling budget: {target_frames}."
-        status_slot.caption(coverage_note)
+    status_slot.caption(f"✓ Video complete · {processed} frames analyzed across {frame_idx} total frames.")
 
     # ================= RESULTS SUMMARY =================
     st.markdown("")
@@ -1282,7 +1155,8 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         kpi_card("Avg Confidence", f"{avg_conf*100:.1f}%" if video_confidences else "—",
                  "this video only" if video_confidences else "no predictions in this video")
     with rc4:
-        kpi_card("Video Duration", f"{duration_s:.1f}s" if duration_s else "unknown")
+        actual_duration = frame_idx / fps if fps and fps > 0 else duration_s
+        kpi_card("Video Duration", f"{actual_duration:.1f}s" if actual_duration else "unknown")
 
     st.markdown("")
     if fall_events:
@@ -1320,7 +1194,7 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                 width="stretch",
                 hide_index=True,
             )
-            _html("<div class='sf-note'>Emergency alert generated — potential fall event detected. No emergency service was automatically contacted (prototype monitoring system).</div></div>")
+            _html("<div class='sf-note'>Emergency alert generated — potential fall event detected. Prototype monitoring system; no emergency service contacted automatically.</div></div>")
     else:
         st.markdown("")
         _html("<div class='sf-card'><div class='sf-card-title'>Fall Event Log</div>" + empty_state("✓", "No potential fall events detected in this video.") + "</div>")
@@ -1422,7 +1296,7 @@ def page_analytics():
             width="stretch",
             hide_index=True,
         )
-        _html("<div class='sf-note'>Fall events are grouped incidents (repeated fall frames merged by the cooldown window), accumulated across the session's videos. Prototype monitoring system; no emergency service contacted automatically.</div>")
+        _html("<div class='sf-note'>Fall events are grouped incidents, accumulated across the session's videos.</div>")
     else:
         _html("<div class='sf-card'>" + empty_state("✓", "No potential fall events detected yet.") + "</div>")
 
@@ -1441,7 +1315,7 @@ def page_analytics():
             hide_index=True,
             height=360,
         )
-        _html(f"<div class='sf-note'>History capped at {HISTORY_CAP} most recent records to bound session memory.</div>")
+        _html(f"<div class='sf-note'>History capped at {HISTORY_CAP} most recent records.</div>")
     else:
         _html("<div class='sf-card'>" + empty_state("—", "No activity history yet. Upload an image or video to start logging predictions.") + "</div>")
 
@@ -1462,10 +1336,7 @@ def page_model_information():
             <div class='sf-card-title'>Pose Estimation</div>
             <div style='font-size:18px;font-weight:800;color:var(--text);'>YOLO11n-Pose</div>
             <div class='sf-note' style='margin-top:8px;line-height:1.5;'>
-                Ultralytics YOLO11n-Pose detects 17 COCO body keypoints per
-                person — shoulders, elbows, wrists, hips, knees, ankles, and
-                facial landmarks — forming the skeleton used for activity
-                inference.
+                Ultralytics YOLO11n-Pose detects 17 COCO body keypoints per person.
             </div>
             <div style='margin-top:10px;'><span class='sf-tag'>17 keypoints</span></div>
         </div>
@@ -1476,9 +1347,7 @@ def page_model_information():
             <div class='sf-card-title'>Classification</div>
             <div style='font-size:18px;font-weight:800;color:var(--text);'>Random Forest</div>
             <div class='sf-note' style='margin-top:8px;line-height:1.5;'>
-                A Random Forest classifier (200 trees, balanced class weights)
-                predicts the activity from the geometric feature vector. Five
-                activity classes:
+                A Random Forest classifier (200 trees, balanced class weights) predicts activity states.
             </div>
             <div style='margin-top:8px;'>
                 <span class='sf-tag' style='color:#fca5a5;border-color:rgba(239,68,68,0.4);background:rgba(239,68,68,0.10);'>Fall</span>
@@ -1495,10 +1364,7 @@ def page_model_information():
             <div class='sf-card-title'>Feature Extraction</div>
             <div style='font-size:18px;font-weight:800;color:var(--text);'>55-Dim Vector</div>
             <div class='sf-note' style='margin-top:8px;line-height:1.5;'>
-                Normalized (x, y) for all 17 keypoints, their confidences,
-                aspect ratio, torso inclination angle, average knee angle,
-                and knee-angle asymmetry — a scale-invariant geometric
-                representation, not raw pixels.
+                Normalized keypoint coordinates, confidence scores, bounding-box aspect ratio, and torso angle.
             </div>
             <div style='margin-top:10px;'><span class='sf-tag'>scale-invariant</span></div>
         </div>
@@ -1546,7 +1412,6 @@ def page_model_information():
         </div>
         """)
 
-    # ================= EVALUATION / ANALYTICS =================
     st.markdown("")
     section_title("Evaluation Metrics", "REAL RESULTS")
 
@@ -1618,24 +1483,9 @@ def page_model_information():
             else:
                 _html(empty_state("—", "No validation metrics available."))
 
-    st.markdown("")
-    with st.expander("Real-world deployment challenges & future improvements"):
-        _html("""
-        <div style='font-size:14px;line-height:1.7;color:#cbd5e1;'>
-            <b>Challenges observed:</b> lighting variation across the six Le2i
-            environments, camera angle differences, partial occlusions, similar
-            body postures (e.g. sitting vs. a low fall), and occasional false
-            fall detections when the torso angle is borderline.<br/><br/>
-            <b>Future improvements:</b> adding more activity videos per class,
-            improving pose-estimation confidence under low light, reducing false
-            alerts with temporal smoothing, supporting real-time CCTV feeds, and
-            periodic retraining with new annotated healthcare data.
-        </div>
-        """)
-
 
 # ============================================================
-# MAIN APP
+# MAIN
 # ============================================================
 
 def main():
