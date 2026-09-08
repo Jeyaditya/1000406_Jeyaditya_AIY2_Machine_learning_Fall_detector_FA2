@@ -409,7 +409,7 @@ def timeline_html(events: list[dict]) -> str:
         cls = "fall" if e["label"] == "fall" else ""
         disp = CLASS_DISPLAY.get(e["label"], str(e["label"]).title())
         conf = e.get("confidence")
-        conf_txt = f"{conf*100:.0f}%" if conf is not None else ""
+        conf_txt = f"{conf*100:.0f}%" if conf is not None and conf > 0 else ""
         rows.append(f"""
         <div class="sf-tl-row {cls}">
             <div class="t">{e['time']}</div>
@@ -550,40 +550,17 @@ def history_df() -> pd.DataFrame:
 def activity_counts() -> dict:
     counts = {c: 0 for c in CLASS_DISPLAY_ORDER}
     for h in st.session_state.history:
-        counts[h["label"]] = counts.get(h["label"], 0) + 1
+        lbl = h.get("label")
+        if lbl in counts:
+            counts[lbl] += 1
     return counts
 
 
 def avg_confidence() -> float | None:
-    if not st.session_state.history:
+    valid_confs = [h["confidence"] for h in st.session_state.history if h["confidence"] > 0]
+    if not valid_confs:
         return None
-    return float(np.mean([h["confidence"] for h in st.session_state.history]))
-
-
-def activity_distribution_chart(data_counts=None, title_label="Predictions"):
-    if not _HAS_MPL:
-        return None
-    counts = data_counts if data_counts is not None else activity_counts()
-    labels = [CLASS_DISPLAY[c] for c in CLASS_DISPLAY_ORDER]
-    values = [counts[c] for c in CLASS_DISPLAY_ORDER]
-    colors = [CLASSES_COLORS[c] for c in CLASS_DISPLAY_ORDER]
-    fig, ax = plt.subplots(figsize=(6.4, 3.0))
-    fig.patch.set_facecolor("#0b1020")
-    ax.set_facecolor("#0b1020")
-    bars = ax.barh(labels, values, color=colors, edgecolor="none", height=0.62)
-    ax.invert_yaxis()
-    for spine in ax.spines.values():
-        spine.set_color("#1f2937")
-    ax.tick_params(colors="#9ca3af", labelsize=11)
-    ax.set_xlabel(title_label, color="#9ca3af", fontsize=11)
-    for b, v in zip(bars, values):
-        if v > 0:
-            ax.text(b.get_width() + max(values) * 0.01 + 0.3, b.get_y() + b.get_height() / 2,
-                    str(int(v)), va="center", color="#e5e7eb", fontsize=11, fontweight="bold")
-    ax.grid(axis="x", color="#1f2937", linewidth=0.6, alpha=0.6)
-    ax.set_axisbelow(True)
-    plt.tight_layout()
-    return fig
+    return float(np.mean(valid_confs))
 
 
 def confidence_breakdown_bars(prob_breakdown: dict):
@@ -784,10 +761,27 @@ def page_overview():
     with a1:
         _html("<div class='sf-card'><div class='sf-card-title'>Activity Distribution</div>")
         if total:
-            fig = activity_distribution_chart()
-            if fig is not None:
-                st.pyplot(fig, width="stretch")
-                plt.close(fig)
+            labels = [CLASS_DISPLAY[c] for c in CLASS_DISPLAY_ORDER]
+            values = [counts[c] for c in CLASS_DISPLAY_ORDER]
+            colors = [CLASSES_COLORS[c] for c in CLASS_DISPLAY_ORDER]
+            fig, ax = plt.subplots(figsize=(6.4, 3.0))
+            fig.patch.set_facecolor("#0b1020")
+            ax.set_facecolor("#0b1020")
+            bars = ax.barh(labels, values, color=colors, edgecolor="none", height=0.62)
+            ax.invert_yaxis()
+            for spine in ax.spines.values():
+                spine.set_color("#1f2937")
+            ax.tick_params(colors="#9ca3af", labelsize=11)
+            ax.set_xlabel("Predictions", color="#9ca3af", fontsize=11)
+            for b, v in zip(bars, values):
+                if v > 0:
+                    ax.text(b.get_width() + max(values) * 0.01 + 0.3, b.get_y() + b.get_height() / 2,
+                            str(int(v)), va="center", color="#e5e7eb", fontsize=11, fontweight="bold")
+            ax.grid(axis="x", color="#1f2937", linewidth=0.6, alpha=0.6)
+            ax.set_axisbelow(True)
+            plt.tight_layout()
+            st.pyplot(fig, width="stretch")
+            plt.close(fig)
         else:
             _html(empty_state("📊", "No activity data yet.<br/>Upload an image or video to begin monitoring."))
         _html("</div>")
@@ -926,7 +920,7 @@ def page_image_analysis(yolo_model, clf, scaler, label_encoder):
 
 
 # ============================================================
-# PAGE: VIDEO MONITORING (SYNCHRONIZED METRICS)
+# PAGE: VIDEO MONITORING (100% RECONCILED DATA)
 # ============================================================
 
 def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
@@ -1011,7 +1005,6 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
         progress_slot = st.empty()
         status_slot = st.empty()
 
-    # Synchronized per-video metrics
     this_video_history: list[dict] = []
     fall_events: list[dict] = []
     last_fall_frame = None
@@ -1025,7 +1018,6 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
             if not ok_read:
                 break
 
-            # Stride-based sampling (processes full video without artificial caps)
             if frame_idx % sample_every_n == 0:
                 small_frame = downscale_frame(frame)
                 del frame
@@ -1084,9 +1076,18 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
                     display_frame = small_frame[:, :, ::-1]
                     cap_text = f"Frame {frame_idx} ({timestamp_s:.1f}s) — Scanning / No person detected"
 
+                    # Explicitly account for undetected frames to eliminate count discrepancies
+                    this_video_history.append({
+                        "time": datetime.now().strftime("%H:%M:%S"),
+                        "source": uploaded.name,
+                        "label": "undetected",
+                        "confidence": 0.0,
+                        "timestamp_s": round(timestamp_s, 2),
+                    })
+
                 preview_slot.image(display_frame, caption=cap_text, width="stretch")
 
-                # Live Hero display: keep displaying the confirmed fall incident once detected
+                # Live Hero display prioritizes the detected fall incident once triggered
                 if fall_events:
                     top_ev = max(fall_events, key=lambda e: e["confidence"])
                     pred_slot.markdown(
@@ -1142,11 +1143,11 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
 
     status_slot.caption(f"✓ Video complete · {processed} frames analyzed across {frame_idx} total frames.")
 
-    # ================= RESULTS SUMMARY (EXACT SYNCHRONIZATION) =================
+    # ================= RESULTS SUMMARY =================
     st.markdown("")
     section_title("Analysis Results", "SUMMARY")
 
-    # Lock Hero Card to the highest confidence incident of this video
+    # Lock Hero Card to the highest confidence fall incident
     if fall_events:
         peak_fall = max(fall_events, key=lambda e: e["confidence"])
         pred_slot.markdown(
@@ -1154,23 +1155,41 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
             unsafe_allow_html=True,
         )
 
-    # Activity counts isolated strictly to this video
-    vid_counts = {c: 0 for c in CLASS_DISPLAY_ORDER}
-    for h in this_video_history:
-        vid_counts[h["label"]] = vid_counts.get(h["label"], 0) + 1
+    # Reconcile counts across all processed frames
+    vid_display_order = ["fall", "walking", "sitting", "standing", "normal", "undetected"]
+    vid_display_labels = {
+        "fall": "Fall",
+        "walking": "Walking",
+        "sitting": "Sitting",
+        "standing": "Standing",
+        "normal": "Normal",
+        "undetected": "No Person",
+    }
+    vid_colors = {
+        "fall": "#ef4444",
+        "walking": "#22d3ee",
+        "sitting": "#f59e0b",
+        "standing": "#60a5fa",
+        "normal": "#22c55e",
+        "undetected": "#6b7280",
+    }
 
-    total_valid_frames = len(this_video_history)
+    vid_counts = {c: 0 for c in vid_display_order}
+    for h in this_video_history:
+        lbl = h.get("label", "undetected")
+        vid_counts[lbl] = vid_counts.get(lbl, 0) + 1
+
     avg_conf = float(np.mean(video_confidences)) if video_confidences else 0.0
 
     rc1, rc2, rc3, rc4 = st.columns(4)
     with rc1:
-        kpi_card("Frames Analyzed", total_valid_frames, f"{processed} sampled frames processed")
+        kpi_card("Frames Analyzed", processed, f"{processed} frames sampled across video")
     with rc2:
         kpi_card("Fall Events", len(fall_events), "grouped incidents (cooldown-merged)" if fall_events else "none detected",
                  variant="danger" if fall_events else "")
     with rc3:
         kpi_card("Avg Confidence", f"{avg_conf*100:.1f}%" if video_confidences else "—",
-                 "this video only" if video_confidences else "no predictions")
+                 "detected frames only" if video_confidences else "no detections")
     with rc4:
         actual_duration = frame_idx / fps if fps and fps > 0 else duration_s
         kpi_card("Video Duration", f"{actual_duration:.1f}s" if actual_duration else "unknown")
@@ -1220,21 +1239,41 @@ def page_video_monitoring(yolo_model, clf, scaler, label_encoder):
     col_dist, col_hist = st.columns([1, 1.15])
     with col_dist:
         _html("<div class='sf-card'><div class='sf-card-title'>Activity Distribution (This Video)</div>")
-        if total_valid_frames > 0:
-            fig = activity_distribution_chart(data_counts=vid_counts, title_label="Predictions (This Video)")
-            if fig is not None:
-                st.pyplot(fig, width="stretch")
-                plt.close(fig)
+        if processed > 0 and _HAS_MPL:
+            active_keys = [c for c in vid_display_order if vid_counts[c] > 0 or c in CLASS_DISPLAY_ORDER]
+            labels = [vid_display_labels[c] for c in active_keys]
+            values = [vid_counts[c] for c in active_keys]
+            colors = [vid_colors[c] for c in active_keys]
+
+            fig, ax = plt.subplots(figsize=(6.4, 3.2))
+            fig.patch.set_facecolor("#0b1020")
+            ax.set_facecolor("#0b1020")
+            bars = ax.barh(labels, values, color=colors, edgecolor="none", height=0.62)
+            ax.invert_yaxis()
+            for spine in ax.spines.values():
+                spine.set_color("#1f2937")
+            ax.tick_params(colors="#9ca3af", labelsize=11)
+            ax.set_xlabel(f"Predictions (Total: {sum(values)})", color="#9ca3af", fontsize=11)
+            for b, v in zip(bars, values):
+                if v > 0:
+                    ax.text(b.get_width() + max(values) * 0.01 + 0.3, b.get_y() + b.get_height() / 2,
+                            str(int(v)), va="center", color="#e5e7eb", fontsize=11, fontweight="bold")
+            ax.grid(axis="x", color="#1f2937", linewidth=0.6, alpha=0.6)
+            ax.set_axisbelow(True)
+            plt.tight_layout()
+            st.pyplot(fig, width="stretch")
+            plt.close(fig)
         else:
             _html(empty_state("📊", "No activity data for this video."))
         _html("</div>")
 
     with col_hist:
         _html("<div class='sf-card'><div class='sf-card-title'>Video Frame Predictions</div>")
-        if this_video_history:
-            _html(timeline_html(this_video_history))
+        detected_history = [h for h in this_video_history if h.get("label") != "undetected"]
+        if detected_history:
+            _html(timeline_html(detected_history))
         else:
-            _html(empty_state("—", "No predictions logged for this video."))
+            _html(empty_state("—", "No person detected in video frames."))
         _html("</div>")
 
 
@@ -1244,7 +1283,7 @@ def _mem_txt() -> str:
 
 
 # ============================================================
-# PAGE: ANALYTICS (SESSION SUMMARY)
+# PAGE: ANALYTICS
 # ============================================================
 
 def page_analytics():
@@ -1270,21 +1309,38 @@ def page_analytics():
     a1, a2 = st.columns([1.1, 1])
     with a1:
         _html("<div class='sf-card'><div class='sf-card-title'>Activity Distribution (All Videos)</div>")
-        if total:
-            fig = activity_distribution_chart(data_counts=counts, title_label="Total Predictions (Session)")
-            if fig is not None:
-                st.pyplot(fig, width="stretch")
-                plt.close(fig)
+        if total and _HAS_MPL:
+            labels = [CLASS_DISPLAY[c] for c in CLASS_DISPLAY_ORDER]
+            values = [counts[c] for c in CLASS_DISPLAY_ORDER]
+            colors = [CLASSES_COLORS[c] for c in CLASS_DISPLAY_ORDER]
+            fig, ax = plt.subplots(figsize=(6.4, 3.0))
+            fig.patch.set_facecolor("#0b1020")
+            ax.set_facecolor("#0b1020")
+            bars = ax.barh(labels, values, color=colors, edgecolor="none", height=0.62)
+            ax.invert_yaxis()
+            for spine in ax.spines.values():
+                spine.set_color("#1f2937")
+            ax.tick_params(colors="#9ca3af", labelsize=11)
+            ax.set_xlabel("Total Predictions (Session)", color="#9ca3af", fontsize=11)
+            for b, v in zip(bars, values):
+                if v > 0:
+                    ax.text(b.get_width() + max(values) * 0.01 + 0.3, b.get_y() + b.get_height() / 2,
+                            str(int(v)), va="center", color="#e5e7eb", fontsize=11, fontweight="bold")
+            ax.grid(axis="x", color="#1f2937", linewidth=0.6, alpha=0.6)
+            ax.set_axisbelow(True)
+            plt.tight_layout()
+            st.pyplot(fig, width="stretch")
+            plt.close(fig)
         else:
             _html(empty_state("📊", "No activity data yet.<br/>Upload an image or video to begin monitoring."))
         _html("</div>")
     with a2:
         _html("<div class='sf-card'><div class='sf-card-title'>Confidence Summary</div>")
         if total:
-            confs = [h["confidence"] for h in st.session_state.history]
-            avg = float(np.mean(confs))
-            mn = float(np.min(confs))
-            mx = float(np.max(confs))
+            confs = [h["confidence"] for h in st.session_state.history if h["confidence"] > 0]
+            avg = float(np.mean(confs)) if confs else 0.0
+            mn = float(np.min(confs)) if confs else 0.0
+            mx = float(np.max(confs)) if confs else 0.0
             cm1, cm2, cm3 = st.columns(3)
             cm1.metric("Average", f"{avg*100:.1f}%")
             cm2.metric("Minimum", f"{mn*100:.1f}%")
